@@ -178,6 +178,19 @@
   .peringatan-data b { display: block; margin-bottom: 2px; }
   .peringatan-data ul { margin: 0; padding-left: 18px; }
   .masalah-ket { margin: 4px 0 0; font-size: .82rem; color: var(--peringatan); text-align: left; }
+  .modal { position: fixed; inset: 0; z-index: 40; display: none; background: rgba(3, 20, 32, .6); overflow-y: auto; padding: 16px; }
+  .modal.buka { display: block; }
+  .form-kotak { max-width: 520px; margin: 24px auto; background: #fff; border-radius: var(--radius); padding: 16px; box-shadow: 0 12px 32px rgba(3, 20, 32, .4); }
+  .form-kotak h3 { margin: 0 0 4px; color: var(--laut-tua); }
+  .form-kotak label { display: block; margin: 12px 0 4px; font-size: .85rem; font-weight: 600; color: var(--redup); }
+  .form-kotak input { width: 100%; font: inherit; font-size: 16px; padding: 10px 12px; border: 1.5px solid var(--garis); border-radius: 10px; background: #fff; color: var(--teks); }
+  .form-kotak input:focus { outline: 3px solid var(--aqua); outline-offset: 1px; }
+  .form-tombol { display: flex; gap: 8px; margin-top: 16px; }
+  .form-tombol button { flex: 1; padding: 12px; border-radius: 10px; font-weight: 600; border: 1.5px solid var(--laut); background: transparent; color: var(--laut); }
+  .form-tombol button[type=submit] { background: var(--laut); color: #fff; }
+  .form-tombol button:disabled { opacity: .6; cursor: wait; }
+  .form-galat { margin-top: 10px; color: var(--galat); font-size: .9rem; }
+  .admin-bar .tambah { display: inline-block; margin-right: 14px; color: var(--laut); font-weight: 600; }
   .admin-bar { margin: 16px 0 0; text-align: center; }
   .admin-bar .periksa { display: inline-block; margin-right: 14px; color: var(--peringatan); font-weight: 600; }
   .admin-bar button { border: 0; background: transparent; color: var(--redup); font-size: .8rem; text-decoration: underline; }
@@ -287,6 +300,8 @@
 
 <div class="ticker" id="ticker" role="region" aria-label="Pemberitahuan"></div>
 
+<div id="formModal" class="modal" role="dialog" aria-modal="true" aria-label="Formulir"></div>
+
 <div id="lightbox" role="dialog" aria-modal="true" aria-label="Foto diperbesar">
   <button type="button" id="tutupFoto" aria-label="Tutup foto">×</button>
   <img id="fotoBesar" alt="">
@@ -313,7 +328,7 @@
   var TARGET_KB   = 120;    // foto upload: target ukuran file (KB)
   /* ===================================================== */
 
-  var KUNCI_LOKAL = 'gudang_cache_v4';
+  var KUNCI_LOKAL = 'gudang_cache_v5';
   var KUNCI_ADMIN = 'gudang_admin_v1';
 
   var DATA_DEMO = [
@@ -331,6 +346,7 @@
   var modeDemo = false;
   var awalSudahDiproses = false;
   var terakhir = { jenis: 'beranda' };
+  var kolomForm = [];
   var kodeAdmin = '';
   try { kodeAdmin = localStorage.getItem(KUNCI_ADMIN) || ''; } catch (e) { /* abaikan */ }
 
@@ -781,6 +797,8 @@
         tombol.push(el('button', { type: 'button', class: 'btn-rak',
           text: (it.fotoLokasi ? 'Ganti' : 'Tambah') + ' foto rak barang ini',
           onclick: function () { pilihFoto(it, 'lokasi'); } }));
+        tombol.push(el('button', { type: 'button', class: 'btn-rak', text: 'Edit info barang', onclick: function () { formEdit(it); } }));
+        tombol.push(el('button', { type: 'button', class: 'btn-rak', text: 'Pindahkan barang', onclick: function () { formPindah(it); } }));
       }
       adminAksi = el('div', { class: 'admin-aksi' }, tombol);
       var mm = masalahItem(it);
@@ -1026,6 +1044,9 @@
     var bar = $('adminBar');
     bar.innerHTML = '';
     if (modeDemo) { return; }
+    if (modeAdmin()) {
+      bar.appendChild(el('button', { type: 'button', class: 'tambah', text: 'Tambah barang', onclick: formTambah }));
+    }
     if (modeAdmin() && semua.length) {
       var n = semuaMasalah().length;
       bar.appendChild(el('button', {
@@ -1146,6 +1167,203 @@
     });
   }
 
+  /* ---------- Edit info, pindah posisi, tambah barang ---------- */
+
+  var KUNCI_PENGUBAH = 'gudang_pengubah_v1';
+  var KUNCI_POSISI = { rak: 1, rak_id: 1, tingkat: 1, kolom: 1 };
+
+  function nilaiKolom(it, c) {
+    var k = c.k;
+    if (c.wajib) { return it.nama || ''; }
+    if (k === 'kategori') { return it.kategori || ''; }
+    if (k === 'kata_kunci') { return it.kataKunci || ''; }
+    if (k === 'dekat_dengan' || k === 'dekat') { return it.dekat || ''; }
+    if (k === 'rak' || k === 'rak_id') { return it.rak || ''; }
+    if (k === 'tingkat') { return it.tingkat || ''; }
+    if (k === 'kolom') { return it.kolom || ''; }
+    if (k === 'stok') { return it.stok || ''; }
+    if (k === 'satuan') { return it.satuan || ''; }
+    if (k === 'stok_min') { return it.stokMin || ''; }
+    return (it.info && it.info[c.label]) || '';
+  }
+
+  function tutupForm() {
+    var m = $('formModal');
+    m.classList.remove('buka');
+    m.innerHTML = '';
+  }
+
+  // o: { judul, catatan, kolom, nilai, tombol, onSimpan(vals, pengubah) -> janji }
+  function bukaForm(o) {
+    var m = $('formModal');
+    m.innerHTML = '';
+    var form = el('form', { class: 'form-kotak', autocomplete: 'off' });
+    form.appendChild(el('h3', { text: o.judul }));
+    if (o.catatan) { form.appendChild(el('p', { class: 'meta', text: o.catatan })); }
+
+    // saran rak: nilai persis seperti di sheet, supaya penulisan rak tetap seragam
+    var daftarRak = el('datalist', { id: 'daftarRak' });
+    var sudahRak = {};
+    semua.forEach(function (x) {
+      var r = String(x.rak || '').trim();
+      if (r && !sudahRak[norm(r)]) { sudahRak[norm(r)] = 1; daftarRak.appendChild(el('option', { value: r })); }
+    });
+    form.appendChild(daftarRak);
+
+    var inputs = {};
+    o.kolom.forEach(function (c) {
+      var id = 'f-' + c.k;
+      var props = { type: 'text', id: id, value: (o.nilai && o.nilai[c.k]) || '' };
+      if (c.k === 'rak' || c.k === 'rak_id') { props.list = 'daftarRak'; }
+      inputs[c.k] = el('input', props);
+      form.appendChild(el('label', { 'for': id, text: c.label + (c.wajib ? ' *' : '') }));
+      form.appendChild(inputs[c.k]);
+    });
+
+    var simpanNama = '';
+    try { simpanNama = localStorage.getItem(KUNCI_PENGUBAH) || ''; } catch (e) { /* abaikan */ }
+    var peng = el('input', { type: 'text', id: 'f-pengubah', value: simpanNama });
+    form.appendChild(el('label', { 'for': 'f-pengubah', text: 'Nama pengubah *' }));
+    form.appendChild(peng);
+
+    var galat = el('div', { class: 'form-galat', role: 'alert' });
+    var simpan = el('button', { type: 'submit', text: o.tombol || 'Simpan' });
+    form.appendChild(galat);
+    form.appendChild(el('div', { class: 'form-tombol' }, [
+      el('button', { type: 'button', text: 'Batal', onclick: tutupForm }),
+      simpan
+    ]));
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var vals = {};
+      o.kolom.forEach(function (c) { vals[c.k] = inputs[c.k].value.trim(); });
+      var nama = peng.value.trim();
+      if (!nama) { galat.textContent = 'Isi nama pengubah dulu.'; return; }
+      try { localStorage.setItem(KUNCI_PENGUBAH, nama); } catch (er) { /* abaikan */ }
+      galat.textContent = '';
+      simpan.disabled = true;
+      simpan.textContent = 'Menyimpan…';
+      new Promise(function (ok) { ok(o.onSimpan(vals, nama)); }).then(function () {
+        tutupForm();
+      }).catch(function (err) {
+        simpan.disabled = false;
+        simpan.textContent = o.tombol || 'Simpan';
+        if (err && err.kode === 'ADMIN_SALAH') { tutupForm(); keluarAdmin(); setInfo('Kode admin ditolak server. Masuk mode admin lagi.', 'galat'); return; }
+        if (err && err.batal) { return; }
+        galat.textContent = (err && err.message) ? err.message : String(err);
+      });
+    });
+
+    m.appendChild(form);
+    m.classList.add('buka');
+    m.scrollTop = 0;
+  }
+
+  function kirimAksi(aksi, pengubah, kode, perubahan) {
+    return kirimKeServer({ aksi: aksi, admin: kodeAdmin, pengubah: pengubah, kode: kode || '', perubahan: perubahan })
+      .then(function (d) {
+        if (!d.ok) { var e = new Error(d.pesan || 'Gagal menyimpan.'); e.kode = d.error; throw e; }
+        return d;
+      });
+  }
+
+  // Muat ulang data dari server (cache server sudah dihapus), lalu tampilkan barangnya
+  function segarkanDariServer(kode, pesan, bikinTombol) {
+    setInfo('Memuat ulang data…');
+    return ambilDariServer().then(function (items) {
+      semua = siapkan(items);
+      simpanLokal(items);
+      dataSiap();
+      var it = semua.filter(function (x) { return String(x.kode) === String(kode); })[0];
+      if (it) { $('q').value = it.nama; tampilSatu(it); }
+      setInfo(pesan, '', it && bikinTombol ? bikinTombol(it) : null);
+    }).catch(function (err) {
+      setInfo('Tersimpan, tetapi gagal memuat ulang data: ' + (err && err.message ? err.message : err) + '. Buka ulang halaman.', 'peringatan');
+    });
+  }
+
+  function butuhKolom() {
+    if (!kolomForm.length) {
+      window.alert('Daftar kolom belum dimuat dari server. Muat ulang halaman, pastikan Code.gs terbaru sudah dideploy, lalu coba lagi.');
+      return false;
+    }
+    return true;
+  }
+
+  function formEdit(it) {
+    if (!butuhKolom()) { return; }
+    var kol = kolomForm.filter(function (c) { return c.grup === 'info' || c.grup === 'dekat'; });
+    var nilai = {};
+    kol.forEach(function (c) { nilai[c.k] = nilaiKolom(it, c); });
+    bukaForm({
+      judul: 'Edit info barang',
+      catatan: 'Kode ' + it.kode + '. Untuk mengubah rak, tingkat, atau kolom, pakai tombol "Pindahkan barang".',
+      kolom: kol, nilai: nilai, tombol: 'Simpan perubahan',
+      onSimpan: function (vals, peng) {
+        var ubah = {};
+        kol.forEach(function (c) { if (vals[c.k] !== nilai[c.k]) { ubah[c.k] = vals[c.k]; } });
+        if (!Object.keys(ubah).length) { throw new Error('Tidak ada yang diubah.'); }
+        return kirimAksi('edit', peng, it.kode, ubah).then(function () {
+          return segarkanDariServer(it.kode, 'Perubahan tersimpan.');
+        });
+      }
+    });
+  }
+
+  function formPindah(it) {
+    if (!butuhKolom()) { return; }
+    var kol = kolomForm.filter(function (c) { return c.grup === 'posisi' || c.grup === 'dekat'; });
+    var nilai = {};
+    kol.forEach(function (c) { nilai[c.k] = nilaiKolom(it, c); });
+    bukaForm({
+      judul: 'Pindahkan barang',
+      catatan: 'Kode ' + it.kode + ' · posisi sekarang: ' + (lokasiRingkas(it) || 'belum diisi') +
+        (it.fotoLokasi ? '. Foto rak barang ini akan dibuang ke tempat sampah.' : '.'),
+      kolom: kol, nilai: nilai, tombol: 'Simpan posisi baru',
+      onSimpan: function (vals, peng) {
+        var ubah = {};
+        kol.forEach(function (c) { if (vals[c.k] !== nilai[c.k]) { ubah[c.k] = vals[c.k]; } });
+        var kunci = Object.keys(ubah);
+        if (!kunci.length) { throw new Error('Tidak ada yang diubah.'); }
+        var geser = kunci.some(function (k) { return KUNCI_POSISI[k]; });
+        if (geser && it.fotoLokasi && !window.confirm('Foto rak lama barang ini akan dibuang ke tempat sampah. Lanjutkan?')) {
+          var b = new Error('Dibatalkan.'); b.batal = true; throw b;
+        }
+        return kirimAksi('pindah', peng, it.kode, ubah).then(function (d) {
+          var pesan = 'Barang dipindahkan.' + (d.fotoDibuang ? ' Foto rak lama sudah dibuang.' : '') + (d.geser ? ' Ambil foto rak yang baru.' : '');
+          return segarkanDariServer(it.kode, pesan, d.geser ? function (baru) {
+            return { label: 'Ambil foto rak baru', aksi: function () { pilihFoto(baru, 'lokasi'); } };
+          } : null);
+        });
+      }
+    });
+  }
+
+  function formTambah() {
+    if (!butuhKolom()) { return; }
+    var kol = kolomForm.slice();
+    var kunciNama = kol.filter(function (c) { return c.wajib; })[0];
+    bukaForm({
+      judul: 'Tambah barang baru',
+      catatan: 'Kode diberikan otomatis oleh server. Hanya nama yang wajib diisi. Foto bisa diunggah setelah barang tersimpan.',
+      kolom: kol, nilai: {}, tombol: 'Simpan barang',
+      onSimpan: function (vals, peng) {
+        var ubah = {};
+        kol.forEach(function (c) { if (vals[c.k]) { ubah[c.k] = vals[c.k]; } });
+        if (!kunciNama || !ubah[kunciNama.k]) { throw new Error('Nama barang wajib diisi.'); }
+        var kembar = semua.some(function (x) { return x._n === norm(ubah[kunciNama.k]); });
+        if (kembar && !window.confirm('Barang dengan nama yang sama sudah ada. Tetap tambahkan?')) {
+          var b = new Error('Dibatalkan.'); b.batal = true; throw b;
+        }
+        return kirimAksi('tambah', peng, '', ubah).then(function (d) {
+          return segarkanDariServer(d.kode, 'Barang ditambahkan dengan kode ' + d.kode +
+            (d.fotoDibuang ? ' (sisa foto lama dengan kode ini dibuang)' : '') + '. Unggah fotonya lewat tombol di bawah kartu.');
+        });
+      }
+    });
+  }
+
   /* ---------- Memuat data ---------- */
 
   function bacaLokal() {
@@ -1157,7 +1375,7 @@
     } catch (e) { return null; }
   }
   function simpanLokal(items) {
-    try { localStorage.setItem(KUNCI_LOKAL, JSON.stringify({ t: Date.now(), items: items })); } catch (e) { /* abaikan */ }
+    try { localStorage.setItem(KUNCI_LOKAL, JSON.stringify({ t: Date.now(), items: items, kolomForm: kolomForm })); } catch (e) { /* abaikan */ }
   }
 
   function ambilDariServer() {
@@ -1180,6 +1398,7 @@
           e.kode = d.error;
           throw e;
         }
+        kolomForm = d.kolomForm || kolomForm;
         return d.items || [];
       });
   }
@@ -1217,6 +1436,7 @@
     var lokal = bacaLokal();
     if (lokal) {
       semua = siapkan(lokal.items);
+      kolomForm = lokal.kolomForm || [];
       dataSiap();
     } else {
       setInfo('Memuat data barang…');
