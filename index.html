@@ -313,7 +313,7 @@
   var TARGET_KB   = 120;    // foto upload: target ukuran file (KB)
   /* ===================================================== */
 
-  var KUNCI_LOKAL = 'gudang_cache_v3';
+  var KUNCI_LOKAL = 'gudang_cache_v4';
   var KUNCI_ADMIN = 'gudang_admin_v1';
 
   var DATA_DEMO = [
@@ -753,7 +753,7 @@
     var fotoBaris = el('div', { class: 'foto-baris' }, [
       el('div', { class: 'foto-blok' }, [el('h4', { text: 'Foto barang' }), fotoEl(it.fotoBarang, 'Foto barang')]),
       el('div', { class: 'foto-blok' }, [
-        el('h4', { text: 'Foto rak' + (it.tingkat ? ' (tingkat ' + bersihAwalan(it.tingkat, 'tingkat') + ')' : '') }),
+        el('h4', { text: 'Foto rak (posisi barang ini)' }),
         fotoEl(it.fotoRak, 'Foto rak')
       ])
     ]);
@@ -777,10 +777,10 @@
       } else {
         tombol.push(el('span', { class: 'meta', text: 'Isi kolom KODE di sheet agar bisa upload foto barang.' }));
       }
-      if (it.rak) {
+      if (it.kode) {
         tombol.push(el('button', { type: 'button', class: 'btn-rak',
-          text: (it.fotoRak ? 'Ganti' : 'Tambah') + ' foto rak' + (it.tingkat ? ' (tingkat ' + bersihAwalan(it.tingkat, 'tingkat') + ')' : ''),
-          onclick: function () { pilihFoto(it, 'rak'); } }));
+          text: (it.fotoLokasi ? 'Ganti' : 'Tambah') + ' foto rak barang ini',
+          onclick: function () { pilihFoto(it, 'lokasi'); } }));
       }
       adminAksi = el('div', { class: 'admin-aksi' }, tombol);
       var mm = masalahItem(it);
@@ -879,7 +879,7 @@
         return String(a.kolom).localeCompare(String(b.kolom), 'id', { numeric: true }) || a.nama.localeCompare(b.nama, 'id');
       });
       var fotoTingkat = '';
-      daftar.forEach(function (it) { if (!fotoTingkat && it.fotoRak) { fotoTingkat = it.fotoRak; } });
+      daftar.forEach(function (it) { if (!fotoTingkat && it.fotoTingkat) { fotoTingkat = it.fotoTingkat; } });
 
       var blok = el('section', { class: 'tingkat' }, [
         el('h4', { text: t === '-' ? 'Tingkat belum diisi' : 'Tingkat ' + t + ' · ' + daftar.length + ' barang' })
@@ -1135,6 +1135,7 @@
       semua.forEach(function (x) {
         if (jenis === 'barang' && x.kode === it.kode) { x.fotoBarang = bust; }
         if (jenis === 'rak' && x._r === it._r && norm(bersihAwalan(x.tingkat, 'tingkat')) === tk) { x.fotoRak = bust; }
+        if (jenis === 'lokasi' && x.kode === it.kode) { x.fotoRak = bust; x.fotoLokasi = true; }
       });
       simpanLokal(semua);
       segarkanTampilan();
