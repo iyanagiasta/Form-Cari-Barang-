@@ -307,7 +307,7 @@
   var TAGLINE         = 'Sistem Informasi Lokasi Barang Gudang';
   var LOGO_FILE       = 'logo.png';
   var TEKS_BERJALAN   = 'PT SARANA CATUR TIRTA KELOLA · BAGIAN GUDANG ◆ Sistem ini dibuat dan dikelola oleh Iyan Agiasta ◆ Hanya untuk penggunaan internal perusahaan';
-  var KODE_AKSES  = 'Iyan1215';
+  var KODE_AKSES  = '';
   var BATAS_HASIL = 30;
   var UKURAN_MAKS = 1000;   // foto upload: sisi terpanjang (piksel)
   var TARGET_KB   = 120;    // foto upload: target ukuran file (KB)
@@ -1042,8 +1042,9 @@
   }
 
   function masukAdmin() {
-    var kode = window.prompt('Masukkan kode admin:');
+    var kode = window.prompt('Masukkan kode admin (huruf besar/kecil berpengaruh):');
     if (!kode) { return; }
+    kode = kode.trim();
     kirimKeServer({ aksi: 'cek', admin: kode }).then(function (d) {
       if (!d.ok) { throw new Error(d.pesan || 'Kode admin salah.'); }
       kodeAdmin = kode;
