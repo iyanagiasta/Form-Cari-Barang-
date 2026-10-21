@@ -110,7 +110,7 @@
   .ombak .o1 { fill: rgba(25, 181, 200, .35); }
   .ombak .o2 { fill: var(--bg); }
 
-  main { padding: 6px 0 calc(var(--tinggi-nyata, calc(var(--tinggi-ticker) + env(safe-area-inset-bottom, 0px))) + 72px); }
+  main { padding: 6px 0 calc(var(--tinggi-ticker) + 56px); }
 
   /* ---------- Info / pesan ---------- */
   .info { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; background: var(--aksen-lembut); font-size: .92rem; }
@@ -974,7 +974,7 @@
   function pasangTicker() {
     var box = $('ticker');
     box.innerHTML = '';
-    if (!TEKS_BERJALAN) { box.style.display = 'none'; ukurTicker(); return; }
+    if (!TEKS_BERJALAN) { box.style.display = 'none'; return; }
     box.style.display = '';
     box.appendChild(el('span', { class: 'sr', text: TEKS_BERJALAN }));
     var track = el('div', { class: 'track', 'aria-hidden': 'true' });
@@ -991,14 +991,6 @@
     }
     track.appendChild(grup.cloneNode(true));
     track.style.setProperty('--durasi', Math.max(15, Math.round(grup.scrollWidth / 45)) + 's');
-    ukurTicker();
-  }
-
-  // Tinggi teks berjalan diukur sungguhan, supaya isi halaman paling bawah tidak pernah tertutup
-  function ukurTicker() {
-    var t = $('ticker');
-    var tinggi = t && t.style.display !== 'none' ? t.offsetHeight : 0;
-    document.documentElement.style.setProperty('--tinggi-nyata', tinggi + 'px');
   }
 
   function terapkanMerek() {
@@ -1519,7 +1511,6 @@
   terapkanMerek();
   pasangTombolAdmin();
   muat();
-  window.addEventListener('load', ukurTicker);
 })();
 </script>
 </body>
