@@ -9,12 +9,10 @@
 <style>
   :root {
     color-scheme: light;
-    /* ===== WARNA IDENTITAS (biru air laut): cukup ubah tiga warna ini ===== */
-    --laut-tua: #06395a;   /* pita kepala & teks berjalan */
-    --laut: #0b6e99;       /* warna utama tombol, penanda lokasi */
-    --aqua: #19b5c8;       /* aksen: tombol Cari, garis tepi */
-    --aqua-teks: #04293f;  /* teks di atas warna aqua */
-    /* ===== warna halaman ===== */
+    --laut-tua: #06395a;
+    --laut: #0b6e99;
+    --aqua: #19b5c8;
+    --aqua-teks: #04293f;
     --bg: #f1f7fa;
     --kartu: #ffffff;
     --teks: #14232d;
@@ -64,7 +62,7 @@
   form { display: flex; gap: 8px; }
   input[type=search] {
     flex: 1; min-width: 0;
-    font: inherit; font-size: 16px; /* 16px mencegah zoom otomatis di iPhone */
+    font: inherit; font-size: 16px;
     padding: 14px 16px;
     border: 0; border-radius: 12px;
     background: #fff; color: var(--teks);
@@ -148,6 +146,10 @@
   .tambahan span { background: var(--bg); border: 1px solid var(--garis); border-radius: 999px; padding: 2px 10px; font-size: .82rem; color: var(--redup); }
   .tambahan b { color: var(--teks); font-weight: 600; }
 
+  .stok { margin: 8px 0 0; font-weight: 600; color: var(--laut-tua); }
+  .stok.menipis { color: var(--peringatan); }
+  .stok.habis { color: var(--galat); }
+
   .foto-baris { display: grid; grid-template-columns: 1fr; gap: 0; border-top: 1px solid var(--garis); }
   .foto-blok { padding: 12px 14px; }
   .foto-blok + .foto-blok { border-top: 1px solid var(--garis); }
@@ -168,6 +170,12 @@
     border: 1.5px solid var(--laut); background: transparent; color: var(--laut); font-weight: 600;
   }
   .btn-rak:active { background: var(--aksen-lembut); }
+  .btn-rak:disabled { opacity: .55; cursor: wait; }
+
+  .admin-aksi { display: flex; gap: 8px; padding: 0 14px 14px; flex-wrap: wrap; }
+  .admin-aksi .btn-rak { flex: 1 1 140px; width: auto; background: var(--aksen-lembut); }
+  .admin-bar { margin: 16px 0 0; text-align: center; }
+  .admin-bar button { border: 0; background: transparent; color: var(--redup); font-size: .8rem; text-decoration: underline; }
 
   @media (min-width: 600px) {
     .foto-baris { grid-template-columns: 1fr 1fr; }
@@ -201,7 +209,7 @@
   .rak-daftar button b { display: block; font-size: 1.05rem; color: var(--laut); }
   .rak-daftar button small { color: var(--redup); }
 
-  /* ---------- Teks berjalan (menempel di bawah layar) ---------- */
+  /* ---------- Teks berjalan ---------- */
   .ticker {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
     height: calc(var(--tinggi-ticker) + env(safe-area-inset-bottom, 0px));
@@ -268,6 +276,7 @@
   <div id="info" class="info" role="status" aria-live="polite"></div>
   <div id="hasil"></div>
   <details id="rakNav" class="rak-nav" open></details>
+  <div id="adminBar" class="admin-bar"></div>
   <noscript><p class="info galat">Halaman ini membutuhkan JavaScript agar bisa dipakai.</p></noscript>
 </main>
 
@@ -291,31 +300,37 @@
   var NAMA_BAGIAN     = 'Bagian Gudang';
   var JUDUL           = 'Warehouse Locator';
   var TAGLINE         = 'Sistem Informasi Lokasi Barang Gudang';
-  var LOGO_FILE       = 'logo.png';  // taruh file logo di folder yang sama dengan index.html. Kosongkan ('') untuk ikon tetes air. Bisa juga 'logo.svg'
-  var TEKS_BERJALAN   = 'PT SARANA CATUR TIRTA KELOLA · BAGIAN GUDANG ◆ Sistem ini dibuat dan dikelola oleh Iyan Agiasta ◆ Hanya untuk penggunaan internal perusahaan';  // kosongkan ('') untuk menyembunyikan
-  var KODE_AKSES  = '';                                     // isi jika KODE_AKSES di Code.gs diisi (atau pakai ?k=KODE di link QR)
-  var BATAS_HASIL = 30;                                     // jumlah kartu yang tampil sekaligus
+  var LOGO_FILE       = 'logo.png';
+  var TEKS_BERJALAN   = 'PT SARANA CATUR TIRTA KELOLA · BAGIAN GUDANG ◆ Sistem ini dibuat dan dikelola oleh Iyan Agiasta ◆ Hanya untuk penggunaan internal perusahaan';
+  var KODE_AKSES  = '';
+  var BATAS_HASIL = 30;
+  var UKURAN_MAKS = 1000;   // foto upload: sisi terpanjang (piksel)
+  var TARGET_KB   = 120;    // foto upload: target ukuran file (KB)
   /* ===================================================== */
 
-  var KUNCI_LOKAL = 'gudang_cache_v1';
+  var KUNCI_LOKAL = 'gudang_cache_v2';
+  var KUNCI_ADMIN = 'gudang_admin_v1';
 
   var DATA_DEMO = [
-    { nama: 'Kabel USB-C 1 meter', kategori: 'Elektronik', rak: 'A', tingkat: '1', kolom: '1', dekat: 'pintu masuk gudang', kataKunci: 'charger data type c', rakNama: 'Rak elektronik', rakLokasi: 'Sisi kiri dari pintu masuk', info: { Catatan: 'Stok kecil' } },
-    { nama: 'Adaptor charger 20W', kategori: 'Elektronik', rak: 'A', tingkat: '2', kolom: '3', dekat: 'lampu neon sisi kiri', kataKunci: 'casan', rakNama: 'Rak elektronik', rakLokasi: 'Sisi kiri dari pintu masuk' },
-    { nama: 'Obeng plus set', kategori: 'Perkakas', rak: 'B', tingkat: '1', kolom: '1', dekat: 'meja kerja', kataKunci: 'obeng kembang', rakNama: 'Rak perkakas', rakLokasi: 'Tengah gudang dekat meja kerja' },
-    { nama: 'Obeng minus set', kategori: 'Perkakas', rak: 'B', tingkat: '1', kolom: '2', dekat: 'meja kerja', kataKunci: 'obeng pipih', rakNama: 'Rak perkakas', rakLokasi: 'Tengah gudang dekat meja kerja' },
-    { nama: 'Bor listrik', kategori: 'Perkakas', rak: 'B', tingkat: '3', kolom: '2', dekat: 'lemari besi', kataKunci: 'mesin bor', rakNama: 'Rak perkakas', rakLokasi: 'Tengah gudang dekat meja kerja' },
-    { nama: 'Lakban bening', kategori: 'Alat tulis', rak: 'C', tingkat: '1', kolom: '1', dekat: 'rak kardus', kataKunci: 'selotip', rakNama: 'Rak alat tulis', rakLokasi: 'Sisi kanan dekat jendela' },
-    { nama: 'Kertas A4 80gsm', kategori: 'Alat tulis', rak: 'C', tingkat: '2', kolom: '1', dekat: 'jendela', kataKunci: 'HVS fotokopi', rakNama: 'Rak alat tulis', rakLokasi: 'Sisi kanan dekat jendela', info: { Catatan: 'Satu rim = 500 lembar' } },
-    { nama: 'Sarung tangan kain', kategori: 'Keselamatan', rak: 'D', tingkat: '3', kolom: '3', dekat: 'pintu belakang', kataKunci: 'glove', rakNama: 'Rak keselamatan', rakLokasi: 'Pojok belakang' }
+    { nama: 'Kabel USB-C 1 meter', kode: 'ELK-001', kategori: 'Elektronik', rak: 'A', tingkat: '1', kolom: '1', dekat: 'pintu masuk gudang', kataKunci: 'charger data type c', stok: '12', satuan: 'pcs', stokMin: '5', rakNama: 'Rak elektronik', rakLokasi: 'Sisi kiri dari pintu masuk', info: { Catatan: 'Stok kecil' } },
+    { nama: 'Adaptor charger 20W', kode: 'ELK-002', kategori: 'Elektronik', rak: 'A', tingkat: '2', kolom: '3', dekat: 'lampu neon sisi kiri', kataKunci: 'casan', stok: '3', satuan: 'pcs', stokMin: '5', rakNama: 'Rak elektronik', rakLokasi: 'Sisi kiri dari pintu masuk' },
+    { nama: 'Obeng plus set', kode: 'PRK-001', kategori: 'Perkakas', rak: 'B', tingkat: '1', kolom: '1', dekat: 'meja kerja', kataKunci: 'obeng kembang', rakNama: 'Rak perkakas', rakLokasi: 'Tengah gudang dekat meja kerja' },
+    { nama: 'Obeng minus set', kode: 'PRK-002', kategori: 'Perkakas', rak: 'B', tingkat: '1', kolom: '2', dekat: 'meja kerja', kataKunci: 'obeng pipih', rakNama: 'Rak perkakas', rakLokasi: 'Tengah gudang dekat meja kerja' },
+    { nama: 'Bor listrik', kode: 'PRK-003', kategori: 'Perkakas', rak: 'B', tingkat: '3', kolom: '2', dekat: 'lemari besi', kataKunci: 'mesin bor', stok: '0', satuan: 'unit', rakNama: 'Rak perkakas', rakLokasi: 'Tengah gudang dekat meja kerja' },
+    { nama: 'Lakban bening', kode: 'ATK-001', kategori: 'Alat tulis', rak: 'C', tingkat: '1', kolom: '1', dekat: 'rak kardus', kataKunci: 'selotip', rakNama: 'Rak alat tulis', rakLokasi: 'Sisi kanan dekat jendela' },
+    { nama: 'Kertas A4 80gsm', kode: 'ATK-002', kategori: 'Alat tulis', rak: 'C', tingkat: '2', kolom: '1', dekat: 'jendela', kataKunci: 'HVS fotokopi', rakNama: 'Rak alat tulis', rakLokasi: 'Sisi kanan dekat jendela', info: { Catatan: 'Satu rim = 500 lembar' } },
+    { nama: 'Sarung tangan kain', kode: 'KSL-001', kategori: 'Keselamatan', rak: 'D', tingkat: '3', kolom: '3', dekat: 'pintu belakang', kataKunci: 'glove', rakNama: 'Rak keselamatan', rakLokasi: 'Pojok belakang' }
   ];
 
   var semua = [];
   var modeDemo = false;
   var awalSudahDiproses = false;
   var terakhir = { jenis: 'beranda' };
+  var kodeAdmin = '';
+  try { kodeAdmin = localStorage.getItem(KUNCI_ADMIN) || ''; } catch (e) { /* abaikan */ }
 
   function $(id) { return document.getElementById(id); }
+  function modeAdmin() { return !!kodeAdmin; }
 
   /* ---------- Alat bantu ---------- */
 
@@ -339,7 +354,7 @@
 
   function norm(s) {
     return String(s || '').toLowerCase()
-      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]+/g, ' ').trim();
   }
 
@@ -351,9 +366,8 @@
     return (items || []).map(function (it, idx) {
       it._id = idx;
       it._h = norm([it.nama, it.kode, it.kategori, it.kataKunci].join(' '));
-      // semua kolom tambahan (KETERANGAN, catatan, merek, dst.) ikut dicari
       it._i = norm(Object.keys(it.info || {}).map(function (k) { return it.info[k]; }).join(' '));
-      it._hr = (it._h + it._i).replace(/ /g, ''); // versi tanpa spasi: "MT90" cocok dengan "MT 90"
+      it._hr = (it._h + it._i).replace(/ /g, '');
       it._hn = it._h.replace(/ /g, '');
       it._n = norm(it.nama);
       it._r = norm(bersihAwalan(it.rak, 'rak'));
@@ -382,7 +396,6 @@
     }
   }
 
-  // Peringatan menetap (tidak ikut terhapus saat user mencari), dipakai untuk "data mungkin usang"
   function setStale(teks, tombol) {
     var box = $('stale');
     box.textContent = teks || '';
@@ -448,7 +461,7 @@
       var cocokRapat = rapat.length >= 3 && it._hr.indexOf(rapat) !== -1;
       if (!cocokKata && !cocokRapat) { return; }
 
-      var skor = 4; // hanya cocok lewat kolom tambahan / ejaan tanpa spasi
+      var skor = 4;
       var semuaDiNama = true;
       for (var j = 0; j < kata.length; j++) {
         if (it._h.indexOf(kata[j]) === -1) { semuaDiNama = false; break; }
@@ -468,7 +481,7 @@
 
   /* ---------- Toleransi salah ketik ---------- */
 
-  function lev(a, b) { // jarak edit (termasuk huruf tertukar), untuk menebak salah ketik
+  function lev(a, b) {
     var al = a.length, bl = b.length, i, j;
     if (!al) { return bl; }
     if (!bl) { return al; }
@@ -487,7 +500,6 @@
     return d[al][bl];
   }
 
-  // Barang yang MIRIP (bukan cocok persis). "sudah" = daftar barang yang tidak perlu diulang.
   function cariKira(q, sudah) {
     var kata = norm(q).split(' ').filter(Boolean);
     var adaPanjang = kata.some(function (k) { return k.length >= 4; });
@@ -636,14 +648,13 @@
 
   /* ---------- Tampilan: satu barang pilihan ---------- */
 
-  function kunciItem(it) { return [it.nama, it.rak, it.tingkat, it.kolom].join('|'); }
+  function kunciItem(it) { return [it.nama, it.kode, it.rak, it.tingkat, it.kolom].join('|'); }
 
   function tampilSatu(it) {
     terakhir = { jenis: 'satu', kunci: kunciItem(it) };
     var box = $('hasil');
     box.innerHTML = '';
     $('rakNav').open = false;
-    setInfo('');
     box.appendChild(el('p', { class: 'judul-hasil', text: 'Barang pilihan Anda' }));
     box.appendChild(kartuBarang(it));
     var mirip = cari(it.nama).length;
@@ -655,6 +666,19 @@
       }));
     }
     window.scrollTo(0, 0);
+  }
+
+  /* ---------- Stok ---------- */
+
+  function stokEl(it) {
+    if (!it.stok) { return null; }
+    var n = parseFloat(String(it.stok).replace(',', '.'));
+    var min = parseFloat(String(it.stokMin || '').replace(',', '.'));
+    var kelas = 'stok';
+    var label = 'Stok: ' + it.stok + (it.satuan ? ' ' + it.satuan : '');
+    if (!isNaN(n) && n <= 0) { kelas += ' habis'; label += ' (habis)'; }
+    else if (!isNaN(n) && !isNaN(min) && n <= min) { kelas += ' menipis'; label += ' (menipis)'; }
+    return el('p', { class: kelas, text: label });
   }
 
   /* ---------- Tampilan: hasil pencarian ---------- */
@@ -684,6 +708,7 @@
       el('h3', { text: it.nama }),
       meta ? el('p', { class: 'meta', text: meta }) : null,
       chips.length ? el('div', { class: 'lokasi' }, chips) : el('p', { class: 'meta', text: 'Lokasi belum diisi.' }),
+      stokEl(it),
       it.dekat ? el('p', { class: 'dekat' }, [ikonPin(), 'Dekat ' + it.dekat]) : null,
       ket ? el('p', { class: 'rak-info', text: ket }) : null,
       tambahan
@@ -705,7 +730,25 @@
       })
     ]) : null;
 
-    return el('article', { class: 'kartu' }, [isi, fotoBaris, aksi]);
+    var adminAksi = null;
+    if (modeAdmin()) {
+      var tombol = [];
+      if (it.kode) {
+        tombol.push(el('button', { type: 'button', class: 'btn-rak',
+          text: (it.fotoBarang ? 'Ganti' : 'Tambah') + ' foto barang',
+          onclick: function () { pilihFoto(it, 'barang'); } }));
+      } else {
+        tombol.push(el('span', { class: 'meta', text: 'Isi kolom KODE di sheet agar bisa upload foto barang.' }));
+      }
+      if (it.rak) {
+        tombol.push(el('button', { type: 'button', class: 'btn-rak',
+          text: (it.fotoRak ? 'Ganti' : 'Tambah') + ' foto rak' + (it.tingkat ? ' (tingkat ' + bersihAwalan(it.tingkat, 'tingkat') + ')' : ''),
+          onclick: function () { pilihFoto(it, 'rak'); } }));
+      }
+      adminAksi = el('div', { class: 'admin-aksi' }, tombol);
+    }
+
+    return el('article', { class: 'kartu' }, [isi, fotoBaris, aksi, adminAksi]);
   }
 
   function tampilHasil(q, semuaHasil) {
@@ -778,7 +821,6 @@
     var ket = [isi[0].rakNama, isi[0].rakLokasi].filter(Boolean).join(' — ');
     box.appendChild(el('p', { class: 'meta', text: (ket ? ket + ' · ' : '') + isi.length + ' barang' }));
 
-    // kelompokkan per tingkat
     var kelompok = {};
     var urutan = [];
     isi.forEach(function (it) {
@@ -877,7 +919,7 @@
     var grup = el('div', { class: 'grup' });
     track.appendChild(grup);
     box.appendChild(track);
-    var unit = TEKS_BERJALAN + '   ◆   ';
+    var unit = TEKS_BERJALAN + '   ◆   ';
     var lebar = Math.max(window.innerWidth, 320);
     grup.appendChild(el('span', { class: 'unit', text: unit }));
     var n = 0;
@@ -885,7 +927,7 @@
       grup.appendChild(el('span', { class: 'unit', text: unit }));
       n++;
     }
-    track.appendChild(grup.cloneNode(true)); // dua grup identik agar putarannya mulus
+    track.appendChild(grup.cloneNode(true));
     track.style.setProperty('--durasi', Math.max(15, Math.round(grup.scrollWidth / 45)) + 's');
   }
 
@@ -897,6 +939,126 @@
     document.title = JUDUL + ' | ' + NAMA_PERUSAHAAN;
     pasangLogo();
     pasangTicker();
+  }
+
+  /* ---------- Mode admin & upload foto ---------- */
+
+  function kirimKeServer(obj) {
+    // Tanpa header khusus (text/plain) supaya tidak kena preflight CORS di Apps Script
+    return fetch(API_URL, { method: 'POST', body: JSON.stringify(obj) }).then(function (r) { return r.json(); });
+  }
+
+  function pasangTombolAdmin() {
+    var bar = $('adminBar');
+    bar.innerHTML = '';
+    if (modeDemo) { return; }
+    bar.appendChild(el('button', {
+      type: 'button',
+      text: modeAdmin() ? 'Keluar mode admin' : 'Mode admin',
+      onclick: modeAdmin() ? keluarAdmin : masukAdmin
+    }));
+  }
+
+  function masukAdmin() {
+    var kode = window.prompt('Masukkan kode admin:');
+    if (!kode) { return; }
+    kirimKeServer({ aksi: 'cek', admin: kode }).then(function (d) {
+      if (!d.ok) { throw new Error(d.pesan || 'Kode admin salah.'); }
+      kodeAdmin = kode;
+      try { localStorage.setItem(KUNCI_ADMIN, kode); } catch (e) { /* abaikan */ }
+      pasangTombolAdmin();
+      segarkanTampilan();
+    }).catch(function (err) { window.alert('Gagal: ' + err.message); });
+  }
+
+  function keluarAdmin() {
+    kodeAdmin = '';
+    try { localStorage.removeItem(KUNCI_ADMIN); } catch (e) { /* abaikan */ }
+    pasangTombolAdmin();
+    segarkanTampilan();
+  }
+
+  function segarkanTampilan() {
+    if (terakhir.jenis === 'cari') { tampilHasil(terakhir.q, terakhir.semua); }
+    else if (terakhir.jenis === 'rak') { tampilRak(terakhir.rak, false); }
+    else if (terakhir.jenis === 'satu') {
+      var k = semua.filter(function (x) { return kunciItem(x) === terakhir.kunci; })[0];
+      if (k) { tampilSatu(k); }
+    }
+  }
+
+  // Kecilkan foto: JPEG, sisi terpanjang <= UKURAN_MAKS, kualitas turun bertahap sampai <= TARGET_KB
+  function kecilkan(file) {
+    return new Promise(function (ok, gagal) {
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onerror = function () { URL.revokeObjectURL(url); gagal(new Error('File bukan gambar yang valid.')); };
+      img.onload = function () {
+        URL.revokeObjectURL(url);
+        var sisi = UKURAN_MAKS, kual = 0.8;
+        (function coba() {
+          var skala = Math.min(1, sisi / Math.max(img.naturalWidth, img.naturalHeight));
+          var c = document.createElement('canvas');
+          c.width = Math.round(img.naturalWidth * skala);
+          c.height = Math.round(img.naturalHeight * skala);
+          var g = c.getContext('2d');
+          g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+          g.drawImage(img, 0, 0, c.width, c.height);
+          c.toBlob(function (b) {
+            if (!b) { gagal(new Error('Gagal memproses foto.')); return; }
+            var kb = b.size / 1024;
+            if (kb > TARGET_KB && kual > 0.5) { kual -= 0.1; coba(); return; }
+            if (kb > TARGET_KB && sisi > 700) { sisi -= 150; kual = 0.7; coba(); return; }
+            ok(b);
+          }, 'image/jpeg', kual);
+        })();
+      };
+      img.src = url;
+    });
+  }
+
+  function keBase64(blob) {
+    return new Promise(function (ok, gagal) {
+      var r = new FileReader();
+      r.onload = function () { ok(String(r.result).split(',')[1]); };
+      r.onerror = function () { gagal(new Error('Gagal membaca foto.')); };
+      r.readAsDataURL(blob);
+    });
+  }
+
+  function pilihFoto(it, jenis) {
+    var inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = 'image/*';
+    inp.onchange = function () { if (inp.files && inp.files[0]) { unggah(it, jenis, inp.files[0]); } };
+    inp.click();
+  }
+
+  function unggah(it, jenis, file) {
+    setInfo('Mengecilkan foto…');
+    var tk = norm(bersihAwalan(it.tingkat, 'tingkat'));
+    kecilkan(file).then(function (blob) {
+      setInfo('Mengunggah (' + Math.round(blob.size / 1024) + ' KB)…');
+      return keBase64(blob).then(function (b64) {
+        return kirimKeServer({
+          aksi: 'foto', admin: kodeAdmin, jenis: jenis, kode: it.kode,
+          rak: bersihAwalan(it.rak, 'rak'), tingkat: bersihAwalan(it.tingkat, 'tingkat'), data: b64
+        });
+      });
+    }).then(function (d) {
+      if (!d.ok) { var e = new Error(d.pesan || 'Gagal menyimpan foto.'); e.kode = d.error; throw e; }
+      var bust = d.url + '&t=' + Date.now(); // paksa browser memuat foto terbaru
+      semua.forEach(function (x) {
+        if (jenis === 'barang' && x.kode === it.kode) { x.fotoBarang = bust; }
+        if (jenis === 'rak' && x._r === it._r && norm(bersihAwalan(x.tingkat, 'tingkat')) === tk) { x.fotoRak = bust; }
+      });
+      simpanLokal(semua);
+      segarkanTampilan();
+      setInfo('Foto tersimpan: ' + d.nama, '');
+    }).catch(function (err) {
+      if (err && err.kode === 'ADMIN_SALAH') { keluarAdmin(); }
+      setInfo('Upload gagal: ' + (err && err.message ? err.message : err), 'galat');
+    });
   }
 
   /* ---------- Memuat data ---------- */
@@ -941,13 +1103,7 @@
     bangunRakNav();
     $('subjudul').textContent = semua.length + ' barang tercatat';
     if (awalSudahDiproses) {
-      // data diperbarui di latar belakang: segarkan tampilan yang sedang terbuka
-      if (terakhir.jenis === 'cari') { tampilHasil(terakhir.q, terakhir.semua); }
-      else if (terakhir.jenis === 'rak') { tampilRak(terakhir.rak, false); }
-      else if (terakhir.jenis === 'satu') {
-        var ketemu = semua.filter(function (x) { return kunciItem(x) === terakhir.kunci; })[0];
-        if (ketemu) { tampilSatu(ketemu); }
-      }
+      segarkanTampilan();
       if (!$('saran').hidden) { tampilSaran(); }
       return;
     }
@@ -967,7 +1123,8 @@
       modeDemo = true;
       semua = siapkan(DATA_DEMO);
       dataSiap();
-      setStale('MODE DEMO: yang dicari hanya data contoh, BUKAN data spreadsheet Anda. Isi API_URL di file index.html dengan URL web app Apps Script, lalu unggah ulang ke Netlify.');
+      pasangTombolAdmin();
+      setStale('MODE DEMO: yang dicari hanya data contoh, BUKAN data spreadsheet Anda. Isi API_URL di file index.html dengan URL web app Apps Script.');
       return;
     }
 
@@ -1027,9 +1184,8 @@
   $('form').addEventListener('submit', function (e) {
     e.preventDefault();
     tutupSaran();
-    var q = $('q').value;
-    tampilHasil(q);
-    $('q').blur(); // tutup keyboard HP supaya hasil terlihat
+    tampilHasil($('q').value);
+    $('q').blur();
   });
   $('tutupFoto').addEventListener('click', tutupFoto);
   $('lightbox').addEventListener('click', function (e) { if (e.target === this) { tutupFoto(); } });
@@ -1047,6 +1203,7 @@
   });
 
   terapkanMerek();
+  pasangTombolAdmin();
   muat();
 })();
 </script>
