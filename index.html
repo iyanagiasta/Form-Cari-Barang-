@@ -174,7 +174,12 @@
 
   .admin-aksi { display: flex; gap: 8px; padding: 0 14px 14px; flex-wrap: wrap; }
   .admin-aksi .btn-rak { flex: 1 1 140px; width: auto; background: var(--aksen-lembut); }
+  .peringatan-data { margin: 0 14px 10px; padding: 10px 12px; border-radius: 10px; background: var(--peringatan-bg); color: var(--peringatan); font-size: .88rem; }
+  .peringatan-data b { display: block; margin-bottom: 2px; }
+  .peringatan-data ul { margin: 0; padding-left: 18px; }
+  .masalah-ket { margin: 4px 0 0; font-size: .82rem; color: var(--peringatan); text-align: left; }
   .admin-bar { margin: 16px 0 0; text-align: center; }
+  .admin-bar .periksa { display: inline-block; margin-right: 14px; color: var(--peringatan); font-weight: 600; }
   .admin-bar button { border: 0; background: transparent; color: var(--redup); font-size: .8rem; text-decoration: underline; }
 
   @media (min-width: 600px) {
@@ -308,7 +313,7 @@
   var TARGET_KB   = 120;    // foto upload: target ukuran file (KB)
   /* ===================================================== */
 
-  var KUNCI_LOKAL = 'gudang_cache_v2';
+  var KUNCI_LOKAL = 'gudang_cache_v3';
   var KUNCI_ADMIN = 'gudang_admin_v1';
 
   var DATA_DEMO = [
@@ -362,8 +367,12 @@
     return String(nilai || '').replace(new RegExp('^' + kata + '[\\s.:-]*', 'i'), '').trim() || String(nilai || '');
   }
 
+  var hitungKode = {};
+  function kunciKode(kode) { return norm(kode).replace(/ /g, '-'); }
+
   function siapkan(items) {
-    return (items || []).map(function (it, idx) {
+    hitungKode = {};
+    var hasil = (items || []).map(function (it, idx) {
       it._id = idx;
       it._h = norm([it.nama, it.kode, it.kategori, it.kataKunci].join(' '));
       it._i = norm(Object.keys(it.info || {}).map(function (k) { return it.info[k]; }).join(' '));
@@ -371,8 +380,35 @@
       it._hn = it._h.replace(/ /g, '');
       it._n = norm(it.nama);
       it._r = norm(bersihAwalan(it.rak, 'rak'));
+      var kk = kunciKode(it.kode);
+      if (kk) { hitungKode[kk] = (hitungKode[kk] || 0) + 1; }
       return it;
     });
+    return hasil;
+  }
+
+  // Daftar masalah data pada satu barang (hanya relevan untuk admin)
+  function masalahItem(it) {
+    var m = [];
+    var kk = kunciKode(it.kode);
+    if (!kk) {
+      m.push({ jenis: 'kosong', teks: 'Kolom KODE kosong: foto barang tidak bisa diunggah. Isi kode di sheet.' });
+    } else if (hitungKode[kk] > 1) {
+      m.push({ jenis: 'kembar', teks: 'Kode "' + it.kode + '" dipakai ' + hitungKode[kk] + ' barang: semuanya berbagi satu foto. Buat kode unik.' });
+    }
+    if (it.fotoManual) {
+      m.push({ jenis: 'manual', teks: 'Kolom FOTO_BARANG di sheet terisi: foto yang diunggah tidak akan tampil. Kosongkan sel itu.' });
+    }
+    return m;
+  }
+
+  function semuaMasalah() {
+    var out = [];
+    semua.forEach(function (it) {
+      var m = masalahItem(it);
+      if (m.length) { out.push({ it: it, m: m }); }
+    });
+    return out;
   }
 
   function ikonFoto() {
@@ -731,6 +767,7 @@
     ]) : null;
 
     var adminAksi = null;
+    var peringatan = null;
     if (modeAdmin()) {
       var tombol = [];
       if (it.kode) {
@@ -746,9 +783,16 @@
           onclick: function () { pilihFoto(it, 'rak'); } }));
       }
       adminAksi = el('div', { class: 'admin-aksi' }, tombol);
+      var mm = masalahItem(it);
+      if (mm.length) {
+        peringatan = el('div', { class: 'peringatan-data', role: 'alert' }, [
+          el('b', { text: 'Perlu diperiksa' }),
+          el('ul', {}, mm.map(function (x) { return el('li', { text: x.teks }); }))
+        ]);
+      }
     }
 
-    return el('article', { class: 'kartu' }, [isi, fotoBaris, aksi, adminAksi]);
+    return el('article', { class: 'kartu' }, [isi, fotoBaris, aksi, peringatan, adminAksi]);
   }
 
   function tampilHasil(q, semuaHasil) {
@@ -948,10 +992,48 @@
     return fetch(API_URL, { method: 'POST', body: JSON.stringify(obj) }).then(function (r) { return r.json(); });
   }
 
+  function tampilMasalah() {
+    terakhir = { jenis: 'masalah' };
+    var box = $('hasil');
+    box.innerHTML = '';
+    $('rakNav').open = false;
+    setInfo('');
+    box.appendChild(el('button', { type: 'button', class: 'btn-kembali', text: '← Kembali', onclick: beranda }));
+    box.appendChild(el('h2', { class: 'rak-judul', text: 'Periksa data' }));
+    var daftar = semuaMasalah();
+    if (!daftar.length) {
+      box.appendChild(el('p', { class: 'info', text: 'Tidak ada masalah ditemukan. Semua barang punya kode unik dan tidak ada foto yang tertimpa kolom FOTO_BARANG.' }));
+      return;
+    }
+    var h = { kosong: 0, kembar: 0, manual: 0 };
+    daftar.forEach(function (d) { d.m.forEach(function (x) { h[x.jenis]++; }); });
+    box.appendChild(el('p', { class: 'meta', text: daftar.length + ' barang perlu diperiksa · kode kosong: ' + h.kosong + ' · kode kembar: ' + h.kembar + ' · FOTO_BARANG terisi: ' + h.manual }));
+    var blok = el('section', { class: 'tingkat' });
+    daftar.forEach(function (d) {
+      blok.appendChild(el('button', {
+        type: 'button', class: 'baris',
+        onclick: function () { $('q').value = d.it.nama; tutupSaran(); tampilSatu(d.it); }
+      }, [
+        el('span', { class: 'nama', text: d.it.nama + (d.it.kode ? ' (' + d.it.kode + ')' : '') }),
+        el('span', { class: 'masalah-ket', text: d.m.map(function (x) { return x.jenis === 'kosong' ? 'kode kosong' : x.jenis === 'kembar' ? 'kode kembar' : 'FOTO_BARANG terisi'; }).join(' · ') })
+      ]));
+    });
+    box.appendChild(blok);
+    window.scrollTo(0, 0);
+  }
+
   function pasangTombolAdmin() {
     var bar = $('adminBar');
     bar.innerHTML = '';
     if (modeDemo) { return; }
+    if (modeAdmin() && semua.length) {
+      var n = semuaMasalah().length;
+      bar.appendChild(el('button', {
+        type: 'button', class: 'periksa',
+        text: n ? 'Periksa data (' + n + ' masalah)' : 'Periksa data (aman ✓)',
+        onclick: tampilMasalah
+      }));
+    }
     bar.appendChild(el('button', {
       type: 'button',
       text: modeAdmin() ? 'Keluar mode admin' : 'Mode admin',
@@ -979,7 +1061,8 @@
   }
 
   function segarkanTampilan() {
-    if (terakhir.jenis === 'cari') { tampilHasil(terakhir.q, terakhir.semua); }
+    if (terakhir.jenis === 'masalah') { tampilMasalah(); }
+    else if (terakhir.jenis === 'cari') { tampilHasil(terakhir.q, terakhir.semua); }
     else if (terakhir.jenis === 'rak') { tampilRak(terakhir.rak, false); }
     else if (terakhir.jenis === 'satu') {
       var k = semua.filter(function (x) { return kunciItem(x) === terakhir.kunci; })[0];
@@ -1101,6 +1184,7 @@
 
   function dataSiap() {
     bangunRakNav();
+    pasangTombolAdmin();
     $('subjudul').textContent = semua.length + ' barang tercatat';
     if (awalSudahDiproses) {
       segarkanTampilan();
