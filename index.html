@@ -59,7 +59,7 @@
   .hero { padding: 16px 0 6px; }
   .hero h1 { margin: 0; font-size: 1.75rem; line-height: 1.12; letter-spacing: .01em; }
   .hero p { margin: 4px 0 14px; opacity: .92; font-size: .95rem; }
-  form { display: flex; gap: 8px; }
+  #form { display: flex; gap: 8px; }
   input[type=search] {
     flex: 1; min-width: 0;
     font: inherit; font-size: 16px;
@@ -110,7 +110,7 @@
   .ombak .o1 { fill: rgba(25, 181, 200, .35); }
   .ombak .o2 { fill: var(--bg); }
 
-  main { padding: 6px 0 calc(var(--tinggi-ticker) + 56px); }
+  main.wrap { padding-top: 6px; padding-bottom: calc(var(--tinggi-nyata, calc(var(--tinggi-ticker) + env(safe-area-inset-bottom, 0px))) + 72px); }
 
   /* ---------- Info / pesan ---------- */
   .info { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; background: var(--aksen-lembut); font-size: .92rem; }
@@ -178,18 +178,56 @@
   .peringatan-data b { display: block; margin-bottom: 2px; }
   .peringatan-data ul { margin: 0; padding-left: 18px; }
   .masalah-ket { margin: 4px 0 0; font-size: .82rem; color: var(--peringatan); text-align: left; }
-  .modal { position: fixed; inset: 0; z-index: 40; display: none; background: rgba(3, 20, 32, .6); overflow-y: auto; padding: 16px; }
-  .modal.buka { display: block; }
-  .form-kotak { max-width: 520px; margin: 24px auto; background: #fff; border-radius: var(--radius); padding: 16px; box-shadow: 0 12px 32px rgba(3, 20, 32, .4); }
-  .form-kotak h3 { margin: 0 0 4px; color: var(--laut-tua); }
-  .form-kotak label { display: block; margin: 12px 0 4px; font-size: .85rem; font-weight: 600; color: var(--redup); }
-  .form-kotak input { width: 100%; font: inherit; font-size: 16px; padding: 10px 12px; border: 1.5px solid var(--garis); border-radius: 10px; background: #fff; color: var(--teks); }
-  .form-kotak input:focus { outline: 3px solid var(--aqua); outline-offset: 1px; }
-  .form-tombol { display: flex; gap: 8px; margin-top: 16px; }
-  .form-tombol button { flex: 1; padding: 12px; border-radius: 10px; font-weight: 600; border: 1.5px solid var(--laut); background: transparent; color: var(--laut); }
-  .form-tombol button[type=submit] { background: var(--laut); color: #fff; }
+  /* ---------- Kotak pencarian + tombol hapus (x) ---------- */
+  .kotak-input { position: relative; flex: 1; min-width: 0; display: flex; }
+  .kotak-input input[type=search] { flex: 1; padding-right: 54px; }
+  input[type=search]::-webkit-search-cancel-button, input[type=search]::-webkit-search-decoration { -webkit-appearance: none; display: none; }
+  .hapus-q { position: absolute; right: 5px; top: 50%; transform: translateY(-50%); width: 42px; height: 42px; padding: 0; border: 0; border-radius: 999px; background: var(--aksen-lembut); color: var(--laut); font-size: 1.6rem; line-height: 1; display: flex; align-items: center; justify-content: center; }
+  .hapus-q[hidden] { display: none; }
+
+  /* ---------- Formulir (lembar dari bawah di HP, kotak di tengah di layar lebar) ---------- */
+  .modal { position: fixed; inset: 0; z-index: 40; display: none; background: rgba(3, 20, 32, .6); align-items: flex-end; justify-content: center; }
+  .modal.buka { display: flex; }
+  #pilihRak { z-index: 50; }
+  .form-kotak, .rak-sheet { width: 100%; max-width: 560px; display: flex; flex-direction: column; background: #fff; border-radius: 18px 18px 0 0; box-shadow: 0 -8px 32px rgba(3, 20, 32, .4); overflow: hidden; }
+  .form-kotak { max-height: 94vh; max-height: 94dvh; }
+  .rak-sheet { height: min(88vh, 640px); }
+  @media (min-width: 600px) { .modal { align-items: center; } .form-kotak, .rak-sheet { border-radius: var(--radius); } }
+  .sheet-kepala { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 14px 16px 8px; }
+  .sheet-kepala h3 { margin: 0; font-size: 1.2rem; color: var(--laut-tua); }
+  .sheet-x { width: 44px; height: 44px; flex-shrink: 0; padding: 0; border: 0; border-radius: 999px; background: var(--aksen-lembut); color: var(--laut); font-size: 1.6rem; line-height: 1; }
+  .form-isi { flex: 1; min-height: 0; overflow-y: auto; padding: 0 16px 12px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+  .form-isi .meta { margin: 0 0 8px; }
+  .bagian { margin-top: 14px; }
+  .bagian h4, .lipat summary { margin: 0 0 4px; font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; color: var(--redup); }
+  .lipat { margin-top: 14px; border-top: 1px solid var(--garis); padding-top: 6px; }
+  .lipat summary { cursor: pointer; padding: 10px 0; font-weight: 700; }
+  .field { margin: 10px 0 0; }
+  .field label { display: block; margin: 0 0 4px; font-size: .85rem; font-weight: 600; color: var(--redup); }
+  .field input[type=text] { width: 100%; min-height: 48px; font: inherit; font-size: 16px; padding: 10px 12px; border: 1.5px solid var(--garis); border-radius: 10px; background: #fff; color: var(--teks); }
+  .field input[type=text]:focus, .rak-baru input:focus, .rak-sheet > input:focus { outline: 3px solid var(--aqua); outline-offset: 1px; }
+  .dua { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .rak-tombol { width: 100%; min-height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border: 1.5px solid var(--laut); border-radius: 10px; background: var(--aksen-lembut); color: var(--laut-tua); font-weight: 700; text-align: left; }
+  .pratinjau { margin: 8px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--aksen-lembut); font-size: .9rem; line-height: 1.5; }
+  .pratinjau b { color: var(--laut-tua); }
+  .form-kaki { padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--garis); background: #fff; }
+  .form-galat { color: var(--galat); font-size: .9rem; margin-bottom: 8px; }
+  .form-galat:empty { display: none; }
+  .form-tombol { display: flex; gap: 8px; }
+  .form-tombol button { flex: 1; min-height: 48px; border-radius: 10px; font-weight: 700; border: 1.5px solid var(--laut); background: transparent; color: var(--laut); }
+  .form-tombol button[type=submit] { flex: 2; background: var(--laut); color: #fff; }
   .form-tombol button:disabled { opacity: .6; cursor: wait; }
-  .form-galat { margin-top: 10px; color: var(--galat); font-size: .9rem; }
+  .rak-sheet > input[type=search] { margin: 0 16px 8px; width: calc(100% - 32px); flex: none; min-height: 48px; font-size: 16px; padding: 10px 12px; border: 1.5px solid var(--garis); border-radius: 10px; box-shadow: none; }
+  .rak-pilih { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px 8px; align-content: flex-start; }
+  .rak-opsi { flex: 1 1 140px; min-height: 56px; padding: 10px 12px; border-radius: 10px; border: 1.5px solid var(--garis); background: var(--bg); color: var(--teks); text-align: left; line-height: 1.2; }
+  .rak-opsi b { display: block; font-size: 1.05rem; color: var(--laut); }
+  .rak-opsi small { color: var(--redup); }
+  .rak-opsi.dipakai { border-color: var(--laut); background: var(--aksen-lembut); }
+  .sheet-label { margin: 6px 16px 4px; font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; color: var(--redup); }
+  .rak-baru { display: flex; gap: 8px; padding: 0 16px; }
+  .rak-baru input { flex: 1; min-width: 0; min-height: 48px; font-size: 16px; padding: 10px 12px; border: 1.5px solid var(--garis); border-radius: 10px; }
+  .rak-baru button { padding: 0 20px; border-radius: 10px; border: 0; background: var(--laut); color: #fff; font-weight: 700; }
+  .rak-kosong { margin: 10px 16px calc(14px + env(safe-area-inset-bottom, 0px)); min-height: 48px; border-radius: 10px; border: 1.5px dashed var(--garis); background: transparent; color: var(--redup); }
   .admin-bar .tambah { display: inline-block; margin-right: 14px; color: var(--laut); font-weight: 600; }
   .admin-bar { margin: 16px 0 0; text-align: center; }
   .admin-bar .periksa { display: inline-block; margin-right: 14px; color: var(--peringatan); font-weight: 600; }
@@ -273,9 +311,12 @@
       <p id="tagline"></p>
       <div class="cari-wrap" id="cariWrap">
         <form id="form" role="search" autocomplete="off">
+          <div class="kotak-input">
           <input id="q" type="search" name="q" placeholder="Ketik nama barang…" aria-label="Nama barang"
                  role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="saran"
                  enterkeyhint="search" autocapitalize="none" autocorrect="off" spellcheck="false">
+          <button type="button" id="hapusQ" class="hapus-q" aria-label="Hapus teks pencarian" hidden>×</button>
+          </div>
           <button class="btn-cari" type="submit">Cari</button>
         </form>
         <div id="saran" class="saran" role="listbox" aria-label="Saran nama barang" hidden></div>
@@ -300,6 +341,7 @@
 
 <div class="ticker" id="ticker" role="region" aria-label="Pemberitahuan"></div>
 
+<div id="pilihRak" class="modal" role="dialog" aria-modal="true" aria-label="Pilih rak"></div>
 <div id="formModal" class="modal" role="dialog" aria-modal="true" aria-label="Formulir"></div>
 
 <div id="lightbox" role="dialog" aria-modal="true" aria-label="Foto diperbesar">
@@ -704,6 +746,7 @@
 
   function tampilSatu(it) {
     terakhir = { jenis: 'satu', kunci: kunciItem(it) };
+    perbaruiHapusQ();
     var box = $('hasil');
     box.innerHTML = '';
     $('rakNav').open = false;
@@ -815,6 +858,7 @@
 
   function tampilHasil(q, semuaHasil) {
     terakhir = { jenis: 'cari', q: q, semua: !!semuaHasil };
+    perbaruiHapusQ();
     var box = $('hasil');
     box.innerHTML = '';
     $('rakNav').open = false;
@@ -857,6 +901,7 @@
 
   function tampilRak(rakId, dariHasil) {
     terakhir = { jenis: 'rak', rak: rakId };
+    perbaruiHapusQ();
     var kunci = norm(bersihAwalan(rakId, 'rak'));
     var isi = semua.filter(function (it) { return it._r === kunci; });
     var box = $('hasil');
@@ -951,6 +996,7 @@
 
   function beranda() {
     terakhir = { jenis: 'beranda' };
+    perbaruiHapusQ();
     $('hasil').innerHTML = '';
     $('rakNav').open = true;
     setInfo('');
@@ -974,7 +1020,7 @@
   function pasangTicker() {
     var box = $('ticker');
     box.innerHTML = '';
-    if (!TEKS_BERJALAN) { box.style.display = 'none'; return; }
+    if (!TEKS_BERJALAN) { box.style.display = 'none'; ukurTicker(); return; }
     box.style.display = '';
     box.appendChild(el('span', { class: 'sr', text: TEKS_BERJALAN }));
     var track = el('div', { class: 'track', 'aria-hidden': 'true' });
@@ -991,6 +1037,14 @@
     }
     track.appendChild(grup.cloneNode(true));
     track.style.setProperty('--durasi', Math.max(15, Math.round(grup.scrollWidth / 45)) + 's');
+    ukurTicker();
+  }
+
+  // Tinggi teks berjalan diukur sungguhan, supaya isi halaman paling bawah tidak pernah tertutup
+  function ukurTicker() {
+    var t = $('ticker');
+    var tinggi = t && t.style.display !== 'none' ? t.offsetHeight : 0;
+    document.documentElement.style.setProperty('--tinggi-nyata', tinggi + 'px');
   }
 
   function terapkanMerek() {
@@ -1187,59 +1241,199 @@
     return (it.info && it.info[c.label]) || '';
   }
 
+  function perbaruiHapusQ() { $('hapusQ').hidden = !$('q').value; }
+
+  function tutupPilihRak() {
+    var p = $('pilihRak');
+    p.classList.remove('buka');
+    p.innerHTML = '';
+  }
+
   function tutupForm() {
     var m = $('formModal');
     m.classList.remove('buka');
     m.innerHTML = '';
+    tutupPilihRak();
+    document.body.style.overflow = '';
   }
 
-  // o: { judul, catatan, kolom, nilai, tombol, onSimpan(vals, pengubah) -> janji }
+  function lokasiTeks(rak, tingkat, kolom) {
+    var p = [];
+    if (rak) { p.push('Rak ' + bersihAwalan(rak, 'rak')); }
+    if (tingkat) { p.push('Tingkat ' + bersihAwalan(tingkat, 'tingkat')); }
+    if (kolom) { p.push('Kolom ' + bersihAwalan(kolom, 'kolom')); }
+    return p.join(' · ') || 'belum diisi';
+  }
+
+  // tingkat/kolom dianggap angka kalau semua isi yang ada di data berupa angka
+  function angkaSemua(f) {
+    return semua.every(function (x) { var v = String(x[f] || '').trim(); return !v || /^\d+$/.test(v); });
+  }
+
+  function daftarRakPilihan() {
+    var peta = {}, urut = [];
+    semua.forEach(function (x) {
+      var r = String(x.rak || '').trim();
+      if (!r) { return; }
+      var k = norm(r);
+      if (!peta[k]) { peta[k] = { nilai: r, n: 0, nama: '' }; urut.push(k); }
+      peta[k].n++;
+      if (!peta[k].nama && x.rakNama) { peta[k].nama = x.rakNama; }
+    });
+    return urut.map(function (k) { return peta[k]; })
+      .sort(function (a, b) { return a.nilai.localeCompare(b.nilai, 'id', { numeric: true }); });
+  }
+
+  // Layar pemilih rak: tombol besar + kotak cari + rak baru + kosongkan
+  function bukaPilihRak(sekarang, onPilih) {
+    var p = $('pilihRak');
+    p.innerHTML = '';
+    var sheet = el('div', { class: 'rak-sheet' });
+    sheet.appendChild(el('div', { class: 'sheet-kepala' }, [
+      el('h3', { text: 'Pilih rak' }),
+      el('button', { type: 'button', class: 'sheet-x', 'aria-label': 'Tutup pilihan rak', text: '×', onclick: tutupPilihRak })
+    ]));
+    var cariInp = el('input', { type: 'search', placeholder: 'Cari rak…', 'aria-label': 'Cari rak', autocomplete: 'off', autocapitalize: 'off', enterkeyhint: 'search' });
+    var daftar = el('div', { class: 'rak-pilih' });
+    var semuaRak = daftarRakPilihan();
+    function pilih(v) { tutupPilihRak(); onPilih(v); }
+    function gambar() {
+      daftar.innerHTML = '';
+      var q = norm(cariInp.value);
+      var cocok = semuaRak.filter(function (r) { return !q || norm(r.nilai + ' ' + r.nama).indexOf(q) !== -1; });
+      cocok.forEach(function (r) {
+        daftar.appendChild(el('button', {
+          type: 'button', class: 'rak-opsi' + (norm(r.nilai) === norm(sekarang) ? ' dipakai' : ''),
+          onclick: function () { pilih(r.nilai); }
+        }, [
+          el('b', { text: 'Rak ' + bersihAwalan(r.nilai, 'rak') }),
+          el('small', { text: (r.nama ? r.nama + ' · ' : '') + r.n + ' barang' })
+        ]));
+      });
+      if (!cocok.length) { daftar.appendChild(el('p', { class: 'meta', text: 'Tidak ada rak yang cocok. Pakai "+ Rak baru" di bawah.' })); }
+    }
+    cariInp.addEventListener('input', gambar);
+    var baruInp = el('input', { type: 'text', placeholder: 'Nama rak baru, misalnya F', 'aria-label': 'Nama rak baru', autocomplete: 'off', autocapitalize: 'characters' });
+    sheet.appendChild(cariInp);
+    sheet.appendChild(daftar);
+    sheet.appendChild(el('p', { class: 'sheet-label', text: '+ Rak baru' }));
+    sheet.appendChild(el('div', { class: 'rak-baru' }, [
+      baruInp,
+      el('button', { type: 'button', text: 'Pakai', onclick: function () { var v = baruInp.value.trim(); if (v) { pilih(v); } } })
+    ]));
+    sheet.appendChild(el('button', { type: 'button', class: 'rak-kosong', text: 'Kosongkan rak (lokasi belum diketahui)', onclick: function () { pilih(''); } }));
+    p.appendChild(sheet);
+    p.classList.add('buka');
+    gambar();
+  }
+
+  // o: { judul, catatan, kolom, bagian:[{judul, kunci:[], lipat}], nilai, tombol, pratinjau(vals)->[lama, baru], onSimpan(vals, pengubah) }
   function bukaForm(o) {
     var m = $('formModal');
     m.innerHTML = '';
+    var olehKunci = {};
+    o.kolom.forEach(function (c) { olehKunci[c.k] = c; });
     var form = el('form', { class: 'form-kotak', autocomplete: 'off' });
-    form.appendChild(el('h3', { text: o.judul }));
-    if (o.catatan) { form.appendChild(el('p', { class: 'meta', text: o.catatan })); }
-
-    // saran rak: nilai persis seperti di sheet, supaya penulisan rak tetap seragam
-    var daftarRak = el('datalist', { id: 'daftarRak' });
-    var sudahRak = {};
-    semua.forEach(function (x) {
-      var r = String(x.rak || '').trim();
-      if (r && !sudahRak[norm(r)]) { sudahRak[norm(r)] = 1; daftarRak.appendChild(el('option', { value: r })); }
-    });
-    form.appendChild(daftarRak);
-
+    form.appendChild(el('div', { class: 'sheet-kepala' }, [
+      el('h3', { text: o.judul }),
+      el('button', { type: 'button', class: 'sheet-x', 'aria-label': 'Tutup formulir', text: '×', onclick: tutupForm })
+    ]));
+    var isi = el('div', { class: 'form-isi' });
+    if (o.catatan) { isi.appendChild(el('p', { class: 'meta', text: o.catatan })); }
     var inputs = {};
-    o.kolom.forEach(function (c) {
+    var pratinjau = o.pratinjau ? el('div', { class: 'pratinjau', 'aria-live': 'polite' }) : null;
+    if (pratinjau) { isi.appendChild(pratinjau); }
+
+    function segarPratinjau() {
+      if (!pratinjau) { return; }
+      var v = {};
+      Object.keys(inputs).forEach(function (k) { v[k] = inputs[k].value.trim(); });
+      var t = o.pratinjau(v);
+      pratinjau.innerHTML = '';
+      pratinjau.appendChild(el('div', {}, ['Sekarang: ', el('b', { text: t[0] })]));
+      pratinjau.appendChild(el('div', {}, ['Menjadi: ', el('b', { text: t[1] })]));
+    }
+
+    function buatField(c) {
       var id = 'f-' + c.k;
-      var props = { type: 'text', id: id, value: (o.nilai && o.nilai[c.k]) || '' };
-      if (c.k === 'rak' || c.k === 'rak_id') { props.list = 'daftarRak'; }
-      inputs[c.k] = el('input', props);
-      form.appendChild(el('label', { 'for': id, text: c.label + (c.wajib ? ' *' : '') }));
-      form.appendChild(inputs[c.k]);
+      var nilai = (o.nilai && o.nilai[c.k]) || '';
+      var kotak = el('div', { class: 'field' });
+      if (c.k === 'rak' || c.k === 'rak_id') {
+        var hid = el('input', { type: 'hidden', id: id, value: nilai });
+        var tb = el('button', { type: 'button', class: 'rak-tombol', 'aria-label': c.label + ': pilih' });
+        var isiTombol = function () {
+          tb.innerHTML = '';
+          tb.appendChild(el('span', { text: hid.value ? 'Rak ' + bersihAwalan(hid.value, 'rak') : 'Pilih rak…' }));
+          tb.appendChild(el('span', { text: '▾', 'aria-hidden': 'true' }));
+        };
+        isiTombol();
+        tb.addEventListener('click', function () {
+          bukaPilihRak(hid.value, function (v) { hid.value = v; isiTombol(); segarPratinjau(); });
+        });
+        inputs[c.k] = hid;
+        kotak.appendChild(el('label', { text: c.label + (c.wajib ? ' *' : ''), onclick: function () { tb.click(); } }));
+        kotak.appendChild(hid);
+        kotak.appendChild(tb);
+        return kotak;
+      }
+      var props = { type: 'text', id: id, value: nilai };
+      if (c.k === 'tingkat' || c.k === 'kolom') {
+        props.autocapitalize = 'off';
+        if (angkaSemua(c.k)) { props.inputmode = 'numeric'; }
+      }
+      var inp = el('input', props);
+      inp.addEventListener('input', segarPratinjau);
+      inputs[c.k] = inp;
+      kotak.appendChild(el('label', { 'for': id, text: c.label + (c.wajib ? ' *' : '') }));
+      kotak.appendChild(inp);
+      return kotak;
+    }
+
+    o.bagian.forEach(function (b) {
+      var ks = b.kunci.filter(function (k) { return olehKunci[k]; });
+      if (!ks.length) { return; }
+      var wadah;
+      if (b.lipat) {
+        wadah = el('details', { class: 'lipat' }, [el('summary', { text: b.judul })]);
+        if (ks.some(function (k) { return o.nilai && o.nilai[k]; })) { wadah.open = true; }
+      } else {
+        wadah = el('section', { class: 'bagian' }, [el('h4', { text: b.judul })]);
+      }
+      var lewat = {};
+      ks.forEach(function (k) {
+        if (lewat[k]) { return; }
+        if (k === 'tingkat' && ks.indexOf('kolom') !== -1) {
+          lewat.kolom = true;
+          wadah.appendChild(el('div', { class: 'dua' }, [buatField(olehKunci.tingkat), buatField(olehKunci.kolom)]));
+        } else {
+          wadah.appendChild(buatField(olehKunci[k]));
+        }
+      });
+      isi.appendChild(wadah);
     });
 
     var simpanNama = '';
     try { simpanNama = localStorage.getItem(KUNCI_PENGUBAH) || ''; } catch (e) { /* abaikan */ }
-    var peng = el('input', { type: 'text', id: 'f-pengubah', value: simpanNama });
-    form.appendChild(el('label', { 'for': 'f-pengubah', text: 'Nama pengubah *' }));
-    form.appendChild(peng);
+    var peng = el('input', { type: 'text', id: 'f-pengubah', value: simpanNama, autocapitalize: 'words' });
+    isi.appendChild(el('section', { class: 'bagian' }, [
+      el('h4', { text: 'Pencatatan' }),
+      el('div', { class: 'field' }, [el('label', { 'for': 'f-pengubah', text: 'Nama pengubah *' }), peng])
+    ]));
+    form.appendChild(isi);
 
     var galat = el('div', { class: 'form-galat', role: 'alert' });
     var simpan = el('button', { type: 'submit', text: o.tombol || 'Simpan' });
-    form.appendChild(galat);
-    form.appendChild(el('div', { class: 'form-tombol' }, [
-      el('button', { type: 'button', text: 'Batal', onclick: tutupForm }),
-      simpan
+    form.appendChild(el('div', { class: 'form-kaki' }, [
+      galat,
+      el('div', { class: 'form-tombol' }, [el('button', { type: 'button', text: 'Batal', onclick: tutupForm }), simpan])
     ]));
 
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var vals = {};
-      o.kolom.forEach(function (c) { vals[c.k] = inputs[c.k].value.trim(); });
+      o.kolom.forEach(function (c) { if (inputs[c.k]) { vals[c.k] = inputs[c.k].value.trim(); } });
       var nama = peng.value.trim();
-      if (!nama) { galat.textContent = 'Isi nama pengubah dulu.'; return; }
+      if (!nama) { galat.textContent = 'Isi nama pengubah dulu.'; peng.focus(); return; }
       try { localStorage.setItem(KUNCI_PENGUBAH, nama); } catch (er) { /* abaikan */ }
       galat.textContent = '';
       simpan.disabled = true;
@@ -1257,7 +1451,8 @@
 
     m.appendChild(form);
     m.classList.add('buka');
-    m.scrollTop = 0;
+    document.body.style.overflow = 'hidden';
+    segarPratinjau();
   }
 
   function kirimAksi(aksi, pengubah, kode, perubahan) {
@@ -1291,15 +1486,23 @@
     return true;
   }
 
+  function kunciPosisi(kol) {
+    var urut = function (c) { return (c.k === 'rak' || c.k === 'rak_id') ? 0 : c.k === 'tingkat' ? 1 : c.k === 'kolom' ? 2 : 3; };
+    return kol.slice().sort(function (a, b) { return urut(a) - urut(b); }).map(function (c) { return c.k; });
+  }
+
   function formEdit(it) {
     if (!butuhKolom()) { return; }
     var kol = kolomForm.filter(function (c) { return c.grup === 'info' || c.grup === 'dekat'; });
     var nilai = {};
     kol.forEach(function (c) { nilai[c.k] = nilaiKolom(it, c); });
+    var utama = kol.filter(function (c) { return c.wajib || c.k === 'kategori'; }).map(function (c) { return c.k; });
+    var lain = kol.map(function (c) { return c.k; }).filter(function (k) { return utama.indexOf(k) === -1; });
     bukaForm({
       judul: 'Edit info barang',
-      catatan: 'Kode ' + it.kode + '. Untuk mengubah rak, tingkat, atau kolom, pakai tombol "Pindahkan barang".',
+      catatan: 'Kode ' + it.kode + '. Untuk mengubah rak, tingkat, atau kolom, pakai "Pindahkan barang".',
       kolom: kol, nilai: nilai, tombol: 'Simpan perubahan',
+      bagian: [{ judul: 'Identitas', kunci: utama }, { judul: 'Isian lainnya', kunci: lain, lipat: true }],
       onSimpan: function (vals, peng) {
         var ubah = {};
         kol.forEach(function (c) { if (vals[c.k] !== nilai[c.k]) { ubah[c.k] = vals[c.k]; } });
@@ -1316,11 +1519,17 @@
     var kol = kolomForm.filter(function (c) { return c.grup === 'posisi' || c.grup === 'dekat'; });
     var nilai = {};
     kol.forEach(function (c) { nilai[c.k] = nilaiKolom(it, c); });
+    var rk = kol.filter(function (c) { return c.k === 'rak' || c.k === 'rak_id'; })[0];
+    var kunciRakForm = rk ? rk.k : 'rak';
     bukaForm({
       judul: 'Pindahkan barang',
-      catatan: 'Kode ' + it.kode + ' · posisi sekarang: ' + (lokasiRingkas(it) || 'belum diisi') +
-        (it.fotoLokasi ? '. Foto rak barang ini akan dibuang ke tempat sampah.' : '.'),
+      catatan: 'Kode ' + it.kode + ' · ' + it.nama + (it.fotoLokasi ? '. Foto rak barang ini akan dibuang ke tempat sampah.' : ''),
       kolom: kol, nilai: nilai, tombol: 'Simpan posisi baru',
+      bagian: [{ judul: 'Lokasi baru', kunci: kunciPosisi(kol) }],
+      pratinjau: function (v) {
+        var pilih = function (k, asal) { return v[k] === undefined ? asal : v[k]; };
+        return [lokasiTeks(it.rak, it.tingkat, it.kolom), lokasiTeks(pilih(kunciRakForm, it.rak), pilih('tingkat', it.tingkat), pilih('kolom', it.kolom))];
+      },
       onSimpan: function (vals, peng) {
         var ubah = {};
         kol.forEach(function (c) { if (vals[c.k] !== nilai[c.k]) { ubah[c.k] = vals[c.k]; } });
@@ -1344,10 +1553,14 @@
     if (!butuhKolom()) { return; }
     var kol = kolomForm.slice();
     var kunciNama = kol.filter(function (c) { return c.wajib; })[0];
+    var utama = kol.filter(function (c) { return c.wajib || c.k === 'kategori'; }).map(function (c) { return c.k; });
+    var lokasi = kunciPosisi(kol.filter(function (c) { return c.grup === 'posisi'; }));
+    var lain = kol.map(function (c) { return c.k; }).filter(function (k) { return utama.indexOf(k) === -1 && lokasi.indexOf(k) === -1; });
     bukaForm({
       judul: 'Tambah barang baru',
-      catatan: 'Kode diberikan otomatis oleh server. Hanya nama yang wajib diisi. Foto bisa diunggah setelah barang tersimpan.',
+      catatan: 'Kode diberikan otomatis. Hanya nama yang wajib diisi. Foto bisa diunggah setelah barang tersimpan.',
       kolom: kol, nilai: {}, tombol: 'Simpan barang',
+      bagian: [{ judul: 'Identitas', kunci: utama }, { judul: 'Lokasi', kunci: lokasi }, { judul: 'Isian lainnya', kunci: lain, lipat: true }],
       onSimpan: function (vals, peng) {
         var ubah = {};
         kol.forEach(function (c) { if (vals[c.k]) { ubah[c.k] = vals[c.k]; } });
@@ -1468,6 +1681,14 @@
   /* ---------- Pasang kejadian ---------- */
 
   $('q').addEventListener('input', tampilSaran);
+  $('q').addEventListener('input', perbaruiHapusQ);
+  $('hapusQ').addEventListener('mousedown', function (e) { e.preventDefault(); });
+  $('hapusQ').addEventListener('click', function () {
+    $('q').value = '';
+    tutupSaran();
+    perbaruiHapusQ();
+    $('q').focus();
+  });
   $('q').addEventListener('focus', function () { if (norm($('q').value)) { tampilSaran(); } });
   $('q').addEventListener('keydown', function (e) {
     var buka = !$('saran').hidden;
@@ -1511,6 +1732,7 @@
   terapkanMerek();
   pasangTombolAdmin();
   muat();
+  window.addEventListener('load', ukurTicker);
 })();
 </script>
 </body>
