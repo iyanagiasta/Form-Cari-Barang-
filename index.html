@@ -273,6 +273,14 @@
   .chip-filter { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
   .chip-filter button { min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1.5px solid var(--garis); background: var(--kartu); color: var(--teks); font-weight: 600; }
   .chip-filter button.aktif { border-color: var(--laut); background: var(--aksen-lembut); color: var(--laut-tua); }
+  .baris.op-baris { padding: 0; align-items: stretch; gap: 0; }
+  .op-buka { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: 3px; text-align: left; padding: 10px 14px; border: 0; background: transparent; color: inherit; font: inherit; }
+  .baris .op-buka .ket { text-align: left; }
+  .op-buka:active { background: var(--aksen-lembut); }
+  .op-ok { width: 58px; flex-shrink: 0; border: 0; border-left: 1px solid var(--garis); background: #e6f6ec; color: #17653a; font-size: 1.4rem; font-weight: 700; }
+  .op-ok:active { background: #c9ecd6; }
+  .op-catatan { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .op-catatan button { min-height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid currentColor; background: transparent; color: inherit; font-weight: 700; }
   .admin-bar .tambah { display: inline-block; margin-right: 14px; color: var(--laut); font-weight: 600; }
   .admin-bar { margin: 16px 0 0; text-align: center; }
   .admin-bar .periksa { display: inline-block; margin-right: 14px; color: var(--peringatan); font-weight: 600; }
@@ -416,7 +424,7 @@
   var BATAS_HASIL = 30;
   var BATAS_ULANG_UNIT = 5;      // harus sama dengan Code.gs: selisih >= angka ini DAN >= 10% stok -> hitung ulang
   var BATAS_ULANG_PERSEN = 0.1;
-  var VERSI = 'v2026.10.23-opname';   // ubah setiap kali Anda menempel versi baru, supaya mudah dicek di HP
+  var VERSI = 'v2026.10.24-opname';   // ubah setiap kali Anda menempel versi baru, supaya mudah dicek di HP
   var UKURAN_MAKS = 1000;   // foto upload: sisi terpanjang (piksel)
   var TARGET_KB   = 120;    // foto upload: target ukuran file (KB)
   /* ===================================================== */
@@ -1847,6 +1855,7 @@
   try { opCache = JSON.parse(localStorage.getItem(KUNCI_OPCACHE) || '{}') || {}; } catch (e) { opCache = {}; }
   var opData = null;                 // data sesi yang sedang dibuka
   var opTampil = { nama: 'daftar' };
+  var opSig = '';                    // penanda layar, supaya posisi gulir tidak lompat saat layar yang sama digambar ulang
   var opKonteks = [];                // daftar barang yang sedang tampil (untuk "Simpan & berikutnya")
   var sinkronJalan = false;
   var sinkronGagal = '';
@@ -1915,6 +1924,7 @@
       antrean.forEach(function (a) {
         if (a.sesi !== opData.sesi.id || a.oleh !== namaAdmin) { return; }
         var k = kunciKode(a.item.kode);
+        if (a.item.status === 'hapus') { delete p[k]; return; }
         p[k] = barisDariAntrean(a, p[k]);
       });
     }
@@ -2022,6 +2032,7 @@
           if (ditolak[kunciKode(a.item.kode)]) { return; }
           var k = kunciKode(a.item.kode), i = -1;
           opData.hasil.forEach(function (r, n) { if (kunciKode(r.kode) === k) { i = n; } });
+          if (a.item.status === 'hapus') { if (i >= 0) { opData.hasil.splice(i, 1); } return; }
           var baru = barisDariAntrean(a, i >= 0 ? opData.hasil[i] : null);
           baru.menunggu = false;
           if (i >= 0) { opData.hasil[i] = baru; } else { opData.hasil.push(baru); }
@@ -2085,6 +2096,14 @@
   }
 
   function opRender() {
+    var sig = opTampil.nama + '|' + (opTampil.rak || '') + '|' + (opTampil.saring || '');
+    var y = window.scrollY;
+    opRenderIsi();
+    if (sig === opSig) { window.scrollTo(0, y); }
+    opSig = sig;
+  }
+
+  function opRenderIsi() {
     var n = opTampil.nama;
     if (n === 'daftar') { opGambarDaftar(opCache.daftar || []); return; }
     if (!opData) { opDaftar(); return; }
@@ -2143,6 +2162,7 @@
 
   function opBukaSesi(id) {
     opTampil = { nama: 'daftar' };
+    opSig = '';
     opAwal('Memuat sesi…', { teks: 'Daftar sesi', aksi: opDaftar });
     opMuat(id).then(function () {
       opTampil = { nama: 'sesi', q: '' };
@@ -2152,19 +2172,60 @@
 
   function statusSesiTeks(s) { return s.status === 'Berjalan' ? 'sedang berjalan' : s.status === 'Ditutup' ? 'ditutup' : 'sudah diterapkan ke stok'; }
 
-  function barisOp(it, peta, konteks) {
+  function barisOp(it, peta, konteks, asal) {
     if (!it.kode) {
       return el('div', { class: 'baris op-baris belum' }, [
         el('span', { class: 'nama' }, [it.nama, el('small', { class: 'op-sub', text: 'Kode kosong: minta admin mengisi kode dulu' })]),
         el('span', { class: 'ket', text: 'Tidak bisa dihitung' })
       ]);
     }
-    var s = statusOp(it, peta[kunciKode(it.kode)]);
+    var r = peta[kunciKode(it.kode)], s = statusOp(it, r);
     var letak = [it.rak ? 'Rak ' + bersihAwalan(it.rak, 'rak') : '', it.tingkat ? 'Tingkat ' + bersihAwalan(it.tingkat, 'tingkat') : '', it.kolom ? 'Kolom ' + bersihAwalan(it.kolom, 'kolom') : '', 'kode ' + it.kode].filter(Boolean).join(' · ');
-    return el('button', { type: 'button', class: 'baris op-baris ' + s.kelas, onclick: function () { bukaHitung(it, konteks); } }, [
+    var anak = [el('button', { type: 'button', class: 'op-buka', onclick: function () { bukaHitung(it, konteks, asal); } }, [
       el('span', { class: 'nama' }, [it.nama, el('small', { class: 'op-sub', text: letak })]),
       el('span', { class: 'ket', text: s.teks })
-    ]);
+    ])];
+    // ✓ satu ketukan: barang yang belum dihitung dan jumlahnya sama dengan stok sistem
+    if (!r && it.stok !== '' && !isNaN(angka(it.stok)) && opData && opData.sesi.status === 'Berjalan') {
+      anak.push(el('button', { type: 'button', class: 'op-ok', 'aria-label': 'Sesuai: ' + it.nama + ' = ' + it.stok, text: '✓', onclick: function () { opSesuai(it); } }));
+    }
+    return el('div', { class: 'baris op-baris ' + s.kelas, 'data-kode': it.kode }, anak);
+  }
+
+  function opSesuai(it) {
+    var j = angka(it.stok);
+    tambahAntrean({ kode: it.kode, nama: it.nama, rak: it.rak, jumlah: bulat3(j), status: 'dihitung', catatan: '', ulang: false });
+    opTampil.catatan = { teks: 'Tersimpan: ' + it.nama + ' = ' + fmtAngka(j) + ' (sesuai)', kode: it.kode, sampai: Date.now() + 8000 };
+    opRender();
+  }
+
+  // Keterangan "Tersimpan: …" dengan tombol Urungkan selama beberapa detik
+  function opCatatanEl() {
+    var c = opTampil.catatan;
+    if (!c || Date.now() > c.sampai) { return null; }
+    var anak = [el('span', { text: c.teks })];
+    if (c.kode) { anak.push(el('button', { type: 'button', text: 'Urungkan', onclick: function () { opUrungkan(c.kode); } })); }
+    var e = el('div', { class: 'sukses op-catatan', id: 'opCatatan', role: 'status', 'data-sampai': String(c.sampai) }, anak);
+    setTimeout(function () {
+      var x = $('opCatatan');
+      if (x && Number(x.getAttribute('data-sampai')) <= Date.now() + 50) { x.style.display = 'none'; }
+    }, Math.max(100, c.sampai - Date.now() + 60));
+    return e;
+  }
+
+  function opUrungkan(kode) {
+    var sesi = opData.sesi.id, k = kunciKode(kode);
+    var milik = antrean.filter(function (a) { return a.sesi === sesi && a.oleh === namaAdmin && kunciKode(a.item.kode) === k && !a.item.ulang && a.item.status !== 'hapus'; });
+    if (milik.length && !sinkronJalan) {
+      antrean = antrean.filter(function (a) { return milik.indexOf(a) === -1; });          // belum terkirim: cukup dibuang dari antrean
+    } else {
+      antrean.push({ sesi: sesi, item: { kode: kode, status: 'hapus' }, oleh: namaAdmin, t: Date.now() });   // sudah terkirim: minta server menghapus
+    }
+    opTampil.catatan = null;
+    simpanAntrean();
+    opPerbaruiSinkron();
+    sinkron();
+    opRender();
   }
 
   function opGambarSesi() {
@@ -2175,25 +2236,49 @@
     box.appendChild(barProgres(progres(peta, lingkup()), 'Seluruh gudang: '));
     box.appendChild(opBarSinkron());
 
+    var cat = opCatatanEl();
+    if (cat) { box.appendChild(cat); }
+
     // pencarian: petugas boleh mengetik nama barang sendiri
     var cariInp = el('input', { type: 'search', placeholder: 'Cari barang untuk dihitung…', 'aria-label': 'Cari barang untuk dihitung', autocomplete: 'off', autocapitalize: 'none', enterkeyhint: 'search' });
     cariInp.value = opTampil.q || '';
+    var hapus = el('button', { type: 'button', class: 'hapus-q', 'aria-label': 'Hapus teks pencarian', text: '×' });
     var hasilCari = el('div', { class: 'tingkat' });
+    var hasilArr = [];
     function gambarCari() {
       opTampil.q = cariInp.value;
+      hapus.hidden = !cariInp.value;
+      var tadi = $('opTadi');
+      if (tadi) { tadi.style.display = norm(cariInp.value) ? 'none' : ''; }
       hasilCari.innerHTML = '';
+      hasilArr = [];
       if (!norm(cariInp.value)) { hasilCari.style.display = 'none'; return; }
       hasilCari.style.display = '';
       var h = cari(cariInp.value);
       if (!h.length) { h = cariKira(cariInp.value, []); }
       h = h.slice(0, 30);
+      hasilArr = h;
       opKonteks = h;
       if (!h.length) { hasilCari.appendChild(el('p', { class: 'meta', style: 'padding:10px 14px', text: 'Tidak ada barang yang cocok.' })); }
       var p = hasilPeta();
-      h.forEach(function (it) { hasilCari.appendChild(barisOp(it, p, h)); });
+      h.forEach(function (it) { hasilCari.appendChild(barisOp(it, p, h, 'cari')); });
     }
-    cariInp.addEventListener('input', gambarCari);
-    box.appendChild(el('div', { class: 'op-cari' }, [cariInp]));
+    cariInp.addEventListener('input', function () {
+      opTampil.catatan = null;
+      var e = $('opCatatan');
+      if (e) { e.style.display = 'none'; }
+      gambarCari();
+    });
+    cariInp.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); if (hasilArr.length) { bukaHitung(hasilArr[0], hasilArr, 'cari'); } }
+    });
+    hapus.addEventListener('mousedown', function (e) { e.preventDefault(); });
+    hapus.addEventListener('click', function () { cariInp.value = ''; gambarCari(); cariInp.focus(); });
+    box.appendChild(el('div', { class: 'op-cari' }, [el('div', { class: 'kotak-input' }, [cariInp, hapus])]));
+    if (!norm(opTampil.q) && opTampil.tadi && opTampil.tadi.q) {
+      box.appendChild(el('button', { type: 'button', class: 'btn-rak', id: 'opTadi', style: 'margin-top:8px', text: 'Hasil tadi: ' + opTampil.tadi.q + ' (' + opTampil.tadi.n + ')',
+        onclick: function () { cariInp.value = opTampil.tadi.q; gambarCari(); cariInp.focus(); } }));
+    }
     box.appendChild(hasilCari);
     gambarCari();
 
@@ -2237,6 +2322,7 @@
       Array.prototype.forEach.call(menuAdmin.querySelectorAll('button[disabled]'), function (b) { b.disabled = true; });
       box.appendChild(menuAdmin);
     }
+    if (opTampil.fokusCari) { opTampil.fokusCari = false; cariInp.focus(); }   // keyboard tetap terbuka, tinggal ketik barang berikutnya
   }
 
   function kelompokTingkat(box, items, peta) {
@@ -2251,7 +2337,7 @@
     urut.forEach(function (t) {
       var daftar = kel[t].slice().sort(urutLetak);
       var blok = el('section', { class: 'tingkat' }, [el('h4', { text: t === '-' ? 'Tingkat belum diisi' : 'Tingkat ' + t + ' · ' + daftar.length + ' barang' })]);
-      daftar.forEach(function (it) { blok.appendChild(barisOp(it, peta, urutan)); });
+      daftar.forEach(function (it) { blok.appendChild(barisOp(it, peta, urutan, 'rak')); });
       box.appendChild(blok);
     });
   }
@@ -2264,6 +2350,8 @@
     box.appendChild(el('p', { class: 'meta', text: pet ? 'Petugas: ' + pet : 'Rak ini belum dibagi ke petugas' }));
     box.appendChild(barProgres(progres(peta, rak.items), 'Rak ini: '));
     box.appendChild(opBarSinkron());
+    var catRak = opCatatanEl();
+    if (catRak) { box.appendChild(catRak); }
     opKonteks = rak.items.slice().sort(urutLetak);
     kelompokTingkat(box, rak.items, peta);
   }
@@ -2386,7 +2474,7 @@
     return null;
   }
 
-  function bukaHitung(it, konteks) {
+  function bukaHitung(it, konteks, asal) {
     if (!opData || opData.sesi.status !== 'Berjalan') { window.alert('Sesi sudah ditutup. Hitungan baru tidak diterima.'); return; }
     var peta = hasilPeta(), r = peta[kunciKode(it.kode)], st = stokSistem(it, r);
     var perlu = butuhUlang(it, r), modeUlang = perlu && r.oleh !== namaAdmin;
@@ -2439,10 +2527,27 @@
         if (isNaN(j) || j < 0) { galat.textContent = 'Jumlah harus berupa angka 0 atau lebih. Pakai koma untuk desimal, mis. 2,5.'; inp.focus(); return; }
         if (j > 1000000000) { galat.textContent = 'Jumlah terlalu besar.'; inp.focus(); return; }
       }
+      var barangBaru = !r;   // sebelumnya belum dihitung: boleh diurungkan
       tambahAntrean({ kode: it.kode, nama: it.nama, rak: it.rak, jumlah: bulat3(j), status: status, catatan: cat.value.trim().substr(0, 200), ulang: modeUlang });
       tutupForm();
+      var nx = berikut ? barangBerikut(it, konteks) : null;
+      if (asal === 'cari' && !nx) {   // dari pencarian: kosongkan kotak & fokus lagi supaya langsung bisa mengetik barang berikutnya
+        if (norm(opTampil.q)) { opTampil.tadi = { q: opTampil.q, n: (konteks || []).length }; }
+        opTampil.q = '';
+        opTampil.fokusCari = true;
+      }
+      opTampil.catatan = { teks: 'Tersimpan: ' + it.nama + ' = ' + (status === 'tidak_ada' ? 'tidak ditemukan' : fmtAngka(j)), kode: barangBaru && !modeUlang ? it.kode : null, sampai: Date.now() + 8000 };
       opRender();
-      if (berikut) { var nx = barangBerikut(it, konteks); if (nx) { bukaHitung(nx, konteks); } }
+      if (nx) { bukaHitung(nx, konteks, asal); }
+      else if (asal === 'rak') {   // dari daftar rak: gulir ke barang berikutnya yang belum dihitung
+        var tn = barangBerikut(it, konteks);
+        if (tn) {
+          Array.prototype.some.call($('hasil').querySelectorAll('.op-baris'), function (rw) {
+            if (rw.getAttribute('data-kode') === String(tn.kode)) { rw.scrollIntoView({ block: 'center' }); return true; }
+            return false;
+          });
+        }
+      }
     }
     var cepat = [];
     if (it.stok && !isNaN(angka(it.stok)) && !modeUlang) {
