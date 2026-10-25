@@ -416,7 +416,7 @@
   /* =====================================================
      PENGATURAN — hanya bagian ini yang perlu Anda ubah
      ===================================================== */
-  var API_URL     = 'https://script.google.com/macros/s/AKfycbzLBxpptCDJw7Xwaw7fT1dGOrA8xQsVwuM-2WXLvaMjUT9IUp5z45PhHOx04gc2yS2J5A/exec
+  var API_URL     = 'https://script.google.com/macros/s/AKfycbzLBxpptCDJw7Xwaw7fT1dGOrA8xQsVwuM-2WXLvaMjUT9IUp5z45PhHOx04gc2yS2J5A/exec'; // URL berakhiran /exec
   var NAMA_PERUSAHAAN = 'PT SARANA CATUR TIRTA KELOLA';
   var NAMA_BAGIAN     = 'Bagian Gudang';
   var JUDUL           = 'Warehouse Locator';
@@ -427,7 +427,7 @@
   var BATAS_HASIL = 30;
   var BATAS_ULANG_UNIT = 5;      // harus sama dengan Code.gs: selisih >= angka ini DAN >= 10% stok -> hitung ulang
   var BATAS_ULANG_PERSEN = 0.1;
-  var VERSI = 'v2026.10.25-opname-langsung';   // ubah setiap kali Anda menempel versi baru, supaya mudah dicek di HP
+  var VERSI = 'v2026.10.25-paket1-hitung';   // ubah setiap kali Anda menempel versi baru, supaya mudah dicek di HP
   var UKURAN_MAKS = 1000;   // foto upload: sisi terpanjang (piksel)
   var TARGET_KB   = 120;    // foto upload: target ukuran file (KB)
   /* ===================================================== */
@@ -1902,6 +1902,7 @@
 
   /* ---- data & status ---- */
 
+  function semuaBarang() { return semua.filter(function (x) { return x.kode; }); }   // termasuk barang yang rak-nya belum diisi
   function lingkup() { return semua.filter(function (x) { return x.kode && x.rak; }); }
   function efektif(r) { return r.ulang !== null && r.ulang !== undefined ? r.ulang : r.jumlah; }
 
@@ -2115,6 +2116,7 @@
     if (n === 'sesi') { opGambarSesi(); }
     else if (n === 'rak') { opGambarRak(opTampil.rak); }
     else if (n === 'ulang') { opGambarDaftarBarang('Perlu hitung ulang', function (it, r) { return butuhUlang(it, r); }, 'Tidak ada barang yang perlu dihitung ulang.'); }
+    else if (n === 'belum') { opGambarDaftarBarang('Belum dihitung', function (it, r) { return !r || r.status === 'Temuan'; }, 'Semua barang sudah dihitung. Kerja bagus!', semuaBarang(), true); }
     else if (n === 'temuan') { opGambarTemuan(); }
     else if (n === 'tinjau') { opGambarTinjau(); }
     else if (n === 'tugas') { opGambarTugas(); }
@@ -2238,7 +2240,7 @@
     var box = opAwal(s.nama, { teks: 'Daftar sesi', aksi: opDaftar });
     box.appendChild(el('p', { class: 'meta', text: s.tipe + ' · ' + statusSesiTeks(s) + ' · dibuat ' + String(s.dibuat).substr(0, 10) + ' oleh ' + s.oleh }));
     if (!berjalan) { box.appendChild(el('p', { class: 'info peringatan', text: s.status === 'Diterapkan' ? 'Sesi ini sudah dikirim ke Gudang. Admin Gudang meninjau selisihnya.' : 'Sesi ini sudah ditutup. Hitungan baru tidak diterima.' })); }
-    box.appendChild(barProgres(progres(peta, lingkup()), 'Seluruh gudang: '));
+    box.appendChild(barProgres(progres(peta, semuaBarang()), 'Seluruh gudang: '));
     box.appendChild(opBarSinkron());
 
     var cat = opCatatanEl();
@@ -2289,7 +2291,9 @@
 
     var ulang = lingkup().filter(function (it) { return butuhUlang(it, peta[kunciKode(it.kode)]); }).length;
     var temuan = Object.keys(peta).filter(function (k) { return peta[k].status === 'Temuan'; }).length;
+    var belumN = progres(peta, semuaBarang()); belumN = belumN.total - belumN.sudah;
     box.appendChild(el('div', { class: 'op-menu' }, [
+      el('button', { type: 'button', text: 'Belum dihitung (' + belumN + ')', onclick: function () { opTampil = { nama: 'belum' }; opRender(); } }),
       el('button', { type: 'button', text: 'Perlu hitung ulang (' + ulang + ')', onclick: function () { opTampil = { nama: 'ulang' }; opRender(); } }),
       el('button', { type: 'button', text: 'Barang temuan (' + temuan + ')', onclick: function () { opTampil = { nama: 'temuan' }; opRender(); } }),
       el('button', { type: 'button', text: '+ Tambah barang temuan', onclick: formTemuan, disabled: berjalan ? null : 'disabled' }),
@@ -2361,14 +2365,14 @@
     kelompokTingkat(box, rak.items, peta);
   }
 
-  function opGambarDaftarBarang(judul, saring, kosong) {
+  function opGambarDaftarBarang(judul, saring, kosong, sumber, belum) {
     var box = opAwal(judul, { teks: opData.sesi.nama, aksi: function () { opTampil = { nama: 'sesi', q: '' }; opRender(); } });
     var peta = hasilPeta();
-    var daftar = lingkup().filter(function (it) { return saring(it, peta[kunciKode(it.kode)]); });
+    var daftar = (sumber || lingkup()).filter(function (it) { return saring(it, peta[kunciKode(it.kode)]); });
     box.appendChild(opBarSinkron());
     if (!daftar.length) { box.appendChild(el('p', { class: 'meta', text: kosong })); return; }
-    box.appendChild(el('p', { class: 'meta', text: daftar.length + ' barang. Hitung ulang harus dilakukan oleh orang lain, bukan yang menghitung pertama.' }));
-    opKonteks = daftar.slice().sort(urutLetak);
+    box.appendChild(el('p', { class: 'meta', text: daftar.length + ' barang.' + (belum ? ' Ketuk barang untuk menghitung. Yang selesai hilang dari daftar ini.' : ' Hitung ulang harus dilakukan oleh orang lain, bukan yang menghitung pertama.') + (daftar.length > 300 ? ' Menampilkan 300 pertama.' : '') }));
+    opKonteks = daftar.slice().sort(urutLetak).slice(0, 300);
     var blok = el('section', { class: 'tingkat' });
     opKonteks.forEach(function (it) { blok.appendChild(barisOp(it, peta, opKonteks)); });
     box.appendChild(blok);
@@ -2558,7 +2562,10 @@
     if (it.stok && !isNaN(angka(it.stok)) && !modeUlang) {
       cepat.push(el('button', { type: 'button', text: 'Sesuai (' + it.stok + ')', onclick: function () { inp.value = fmtAngka(angka(it.stok)); simpan('dihitung', false); } }));
     }
-    cepat.push(el('button', { type: 'button', text: 'Tidak ditemukan', onclick: function () { simpan('tidak_ada', false); } }));
+    cepat.push(el('button', { type: 'button', text: 'Tidak ditemukan', onclick: function () {
+      if (!window.confirm('Barang ini TIDAK ditemukan di gudang?\nStok di sistem akan menjadi 0.')) { return; }
+      simpan('tidak_ada', false);
+    } }));
     isi.appendChild(el('div', { class: 'op-cepat' }, cepat));
     form.appendChild(isi);
     var tombolSimpan = el('button', { type: 'submit', text: 'Simpan' });
