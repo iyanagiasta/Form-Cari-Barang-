@@ -232,6 +232,8 @@
   #wizFoto { z-index: 60; }
   .btn-gembok { margin-left: auto; width: 44px; height: 44px; flex-shrink: 0; padding: 0; border: 0; border-radius: 999px; background: rgba(255, 255, 255, .16); color: #fff; display: flex; align-items: center; justify-content: center; }
   .btn-gembok[hidden] { display: none; }
+  .btn-utama { margin-left: auto; flex-shrink: 0; min-height: 44px; display: inline-flex; align-items: center; padding: 0 14px; border-radius: 999px; background: rgba(255, 255, 255, .16); color: #fff; font-size: .85rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
+  .btn-utama + .btn-gembok { margin-left: 0; }
   .btn-gembok.aktif { background: var(--aqua); color: var(--aqua-teks); }
   .versi { margin: 4px 0 0; text-align: center; font-size: .72rem; color: var(--redup); opacity: .8; }
   .sukses { margin: 0 0 8px; padding: 10px 12px; border-radius: 10px; background: #e3f6ec; color: #17653a; font-size: .9rem; font-weight: 600; }
@@ -256,6 +258,7 @@
   .op-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
   .op-menu button { min-height: 48px; padding: 8px; border-radius: 10px; border: 1.5px solid var(--laut); background: var(--aksen-lembut); color: var(--laut-tua); font-weight: 700; }
   .op-menu button:disabled { opacity: .5; cursor: not-allowed; }
+  .op-menu button.op-hapus { border-color: #b3261e; color: #b3261e; background: transparent; }
   .op-sub-judul { margin: 16px 0 6px; font-size: .9rem; color: var(--laut-tua); }
   .op-baris .op-sub { display: block; font-weight: 400; color: var(--redup); font-size: .8rem; }
   .op-baris.sesuai .ket { color: #17653a; font-weight: 700; }
@@ -358,6 +361,7 @@
     <div class="bar">
       <div class="logo" id="logo" aria-hidden="true"></div>
       <div class="merek"><b id="perusahaan"></b><span id="bagian"></span></div>
+      <a class="btn-utama" id="keUtama" href="https://iyanagiasta.github.io/formpermintaanbarang/dashboard.html" aria-label="Kembali ke halaman utama">&larr; Halaman Utama</a>
       <button type="button" id="gembok" class="btn-gembok" aria-label="Masuk mode admin"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></button>
     </div>
     <div class="hero">
@@ -1713,6 +1717,7 @@
       var it = semua.filter(function (x) { return String(x.kode) === String(kode); })[0];
       if (dariOpname && Date.now() - dariOpname < 180000) { dariOpname = 0; try { if (opData) { opRender(); } } catch (e) { /* abaikan */ } }
       else if (it) { $('q').value = it.nama; tampilSatu(it); }
+      try { $('q').focus(); $('q').select(); } catch (e) { /* abaikan */ }
       setInfo(pesan, '', it && bikinTombol ? bikinTombol(it) : null);
     }).catch(function (err) {
       setInfo('Tersimpan, tetapi gagal memuat ulang data: ' + (err && err.message ? err.message : err) + '. Buka ulang halaman.', 'peringatan');
@@ -1860,6 +1865,7 @@
   var opCache = {};     // salinan terakhir daftar sesi dan data sesi, untuk dibuka tanpa sinyal
   try { antrean = JSON.parse(localStorage.getItem(KUNCI_ANTREAN) || '[]') || []; } catch (e) { antrean = []; }
   try { opCache = JSON.parse(localStorage.getItem(KUNCI_OPCACHE) || '{}') || {}; } catch (e) { opCache = {}; }
+  var opMuatAt = Date.now();         // kapan data sesi terakhir diambil dari server
   var opData = null;                 // data sesi yang sedang dibuka
   var opTampil = { nama: 'daftar' };
   var opSig = '';                    // penanda layar, supaya posisi gulir tidak lompat saat layar yang sama digambar ulang
@@ -2077,7 +2083,7 @@
 
   function opMuat(id, diam) {
     return postOp('sesi_data', { sesi: id }).then(function (d) {
-      opData = d;
+      opData = d; opMuatAt = Date.now();
       opCache[id] = d;
       simpanOpCache();
       return d;
@@ -2103,6 +2109,11 @@
     box.appendChild(el('h2', { class: 'rak-judul', text: judul }));
     window.scrollTo(0, 0);
     return box;
+  }
+
+  function umurTeks() {
+    var d = Math.max(0, Math.round((Date.now() - opMuatAt) / 1000));
+    return 'Progres diperbarui otomatis · data server ' + (d < 5 ? 'baru saja' : d < 60 ? d + ' detik lalu' : Math.round(d / 60) + ' menit lalu');
   }
 
   function opRender() {
@@ -2206,6 +2217,7 @@
     var j = angka(it.stok);
     tambahAntrean({ kode: it.kode, nama: it.nama, rak: it.rak, jumlah: bulat3(j), status: 'dihitung', catatan: '', ulang: false });
     opTampil.catatan = { teks: 'Tersimpan: ' + it.nama + ' = ' + fmtAngka(j) + ' (sesuai)', kode: it.kode, sampai: Date.now() + 8000 };
+    if (opTampil.nama === 'sesi') { opTampil.q = ''; opTampil.fokusCari = true; }
     opRender();
   }
 
@@ -2244,6 +2256,7 @@
     box.appendChild(el('p', { class: 'meta', text: s.tipe + ' · ' + statusSesiTeks(s) + ' · dibuat ' + String(s.dibuat).substr(0, 10) + ' oleh ' + s.oleh }));
     if (!berjalan) { box.appendChild(el('p', { class: 'info peringatan', text: s.status === 'Diterapkan' ? 'Sesi ini sudah diterapkan ke stok.' : 'Sesi ini sudah ditutup. Hitungan baru tidak diterima.' })); }
     box.appendChild(barProgres(progres(peta, lingkup()), 'Seluruh gudang: '));
+    box.appendChild(el('p', { class: 'meta', id: 'opUmur', text: umurTeks() }));
     box.appendChild(opBarSinkron());
     var nTanpa = tanpaRakJumlah();
     if (nTanpa) {
@@ -2311,9 +2324,9 @@
     if (!raks.length) { box.appendChild(el('p', { class: 'meta', text: 'Belum ada rak. Cari barang lewat kotak di atas.' })); }
     var blok = el('section', { class: 'tingkat' });
     raks.forEach(function (r) {
-      var p = progres(peta, r.items), pet = petugasRak(r.kunci);
+      var p = progres(peta, r.items);
       blok.appendChild(el('button', { type: 'button', class: 'baris', onclick: function () { opTampil = { nama: 'rak', rak: r.kunci }; opRender(); } }, [
-        el('span', { class: 'nama' }, [labelRak(r), el('small', { class: 'op-sub', text: pet ? 'Petugas: ' + pet : 'Belum dibagi' })]),
+        el('span', { class: 'nama' }, [labelRak(r)]),
         el('span', { class: 'ket', text: p.sudah + ' / ' + p.total + (p.sudah === p.total && p.total ? ' ✓' : '') })
       ]));
     });
@@ -2323,12 +2336,12 @@
       box.appendChild(el('h3', { class: 'op-sub-judul', text: 'Khusus admin' }));
       var alat = [
         el('button', { type: 'button', text: 'Tinjau selisih', onclick: function () { opTampil = { nama: 'tinjau', saring: 'selisih' }; opRender(); } }),
-        el('button', { type: 'button', text: 'Bagi rak ke petugas', onclick: function () { opTampil = { nama: 'tugas' }; opRender(); } }),
         berjalan ? el('button', { type: 'button', text: 'Tutup sesi', onclick: opTutup })
           : el('button', { type: 'button', text: 'Terapkan ke stok', onclick: function () { opTerapkan(false); }, disabled: s.status === 'Diterapkan' ? 'disabled' : null }),
         el('button', { type: 'button', text: 'Unduh Excel', onclick: function () { opUnduh('xlsx'); } }),
         el('button', { type: 'button', text: 'Unduh PDF', onclick: function () { opUnduh('pdf'); } })
       ];
+      if (!berjalan) { alat.push(el('button', { type: 'button', class: 'op-hapus', text: 'Hapus sesi', onclick: opHapusSesi })); }
       var menuAdmin = el('div', { class: 'op-menu' }, alat);
       Array.prototype.forEach.call(menuAdmin.querySelectorAll('button[disabled]'), function (b) { b.disabled = true; });
       box.appendChild(menuAdmin);
@@ -2357,8 +2370,7 @@
     var rak = rakBerlingkup().filter(function (r) { return r.kunci === kunci; })[0];
     var box = opAwal(rak ? labelRak(rak) : 'Rak', { teks: opData.sesi.nama, aksi: function () { opTampil = { nama: 'sesi', q: '' }; opRender(); } });
     if (!rak) { box.appendChild(el('p', { class: 'info peringatan', text: 'Rak tidak ditemukan.' })); return; }
-    var peta = hasilPeta(), pet = petugasRak(kunci);
-    box.appendChild(el('p', { class: 'meta', text: pet ? 'Petugas: ' + pet : 'Rak ini belum dibagi ke petugas' }));
+    var peta = hasilPeta();
     box.appendChild(barProgres(progres(peta, rak.items), 'Rak ini: '));
     box.appendChild(opBarSinkron());
     var catRak = opCatatanEl();
@@ -2430,7 +2442,7 @@
     daftar.forEach(function (x) {
       var it = x.it;
       var sub = ['Rak ' + bersihAwalan(it.rak, 'rak'), it.tingkat ? 'Tingkat ' + bersihAwalan(it.tingkat, 'tingkat') : '', 'kode ' + it.kode].filter(Boolean).join(' · ');
-      var ket = x.belum ? 'Petugas: ' + (petugasRak(kunciRakOp(it.rak)) || 'belum dibagi')
+      var ket = x.belum ? 'Belum dihitung'
         : 'Sistem ' + fmtAngka(x.st) + ' → ' + (x.r.status === 'Tidak ditemukan' ? 'tidak ditemukan' : fmtAngka(x.j)) + ' (' + (x.d > 0 ? '+' : '') + fmtAngka(x.d) + ')';
       var oleh = x.belum ? '' : ' · oleh ' + (x.r.oleh || '-') + (x.r.ulang !== null && x.r.ulang !== undefined ? ', ulang ' + fmtAngka(x.r.ulang) + ' oleh ' + (x.r.olehUlang || '-') : '') + (x.r.catatan ? ' · ' + x.r.catatan : '');
       blok.appendChild(el('button', { type: 'button', class: 'baris op-baris ' + (x.belum ? 'belum' : x.d === 0 ? 'sesuai' : butuhUlang(it, x.r) ? 'ulang' : 'selisih'), onclick: function () { bukaHitung(it, opKonteks); } }, [
@@ -2608,7 +2620,7 @@
         if (!vals.jumlah) { throw new Error('Jumlah wajib diisi.'); }
         if (isNaN(j) || j < 0) { throw new Error('Jumlah harus berupa angka 0 atau lebih. Pakai koma untuk desimal.'); }
         tambahAntrean({ kode: 'TMN-' + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36), nama: nama, rak: vals.rak || '', jumlah: bulat3(j), status: 'temuan', catatan: vals.catatan || '' });
-        opTampil = { nama: 'temuan' };
+        opTampil = { nama: 'sesi', q: '', fokusCari: true, catatan: { teks: 'Barang temuan tersimpan: ' + nama + ' = ' + fmtAngka(j), kode: null, sampai: Date.now() + 8000 } };
         setTimeout(opRender, 0);
       }
     });
@@ -2642,6 +2654,20 @@
       opTampil = { nama: 'sesi', q: '' };
       opRender();
       setInfo('Sesi ditutup. Tinjau selisih, lalu terapkan ke stok.');
+    }).catch(function (err) { setInfo(galatOp(err), 'galat'); });
+  }
+
+  function opHapusSesi() {
+    var s = opData.sesi;
+    if (s.status === 'Berjalan') { window.alert('Sesi yang masih berjalan tidak bisa dihapus. Tutup sesi dulu.'); return; }
+    var pesan = 'Hapus sesi "' + s.nama + '"?' + (s.status === 'Diterapkan' ? '\n\nSesi ini SUDAH diterapkan ke stok. Menghapus sesi tidak membatalkan perubahan stok.' : '') + '\n\nSesi hilang dari daftar (datanya tetap tersimpan di sheet). Ketik nama sesi untuk melanjutkan:';
+    var jwb = window.prompt(pesan, '');
+    if (jwb === null) { return; }
+    if (norm(jwb) !== norm(s.nama)) { window.alert('Nama sesi tidak sama. Sesi tidak dihapus.'); return; }
+    postOp('sesi_hapus', { sesi: s.id }).then(function () {
+      delete opCache[s.id]; opData = null; simpanOpCache();
+      opDaftar();
+      setInfo('Sesi "' + s.nama + '" dihapus.');
     }).catch(function (err) { setInfo(galatOp(err), 'galat'); });
   }
 
@@ -3029,12 +3055,30 @@
   window.addEventListener('online', function () { sinkron(true); });
   window.addEventListener('offline', opPerbaruiSinkron);
   setInterval(function () { sinkron(); }, 20000);
-  setInterval(function () {   // lihat hitungan petugas lain, hanya saat layar opname terbuka dan tidak sedang mengetik
-    var buka = $('formModal').classList.contains('buka') || (document.activeElement && document.activeElement.tagName === 'INPUT');
-    if (terakhir.jenis === 'opname' && opData && opTampil.nama !== 'daftar' && !antreanSaya().length && !buka && navigator.onLine !== false && modeLogin()) {
-      opMuat(opData.sesi.id, true).then(function () { if (terakhir.jenis === 'opname') { opRender(); } }, function () { /* abaikan */ });
+  // Progres real-time: ambil data server tiap 12 detik (juga saat kembali ke aplikasi). Kolom cari yang sedang dipakai dipertahankan.
+  var polingJalan = false;
+  function segarkanProgres() {
+    if (polingJalan || terakhir.jenis !== 'opname' || !modeLogin() || navigator.onLine === false) { return; }
+    if ($('formModal').classList.contains('buka') || document.hidden) { return; }
+    if (opTampil.nama === 'daftar') {
+      polingJalan = true;
+      postOp('sesi_daftar').then(function (d) { opCache.daftar = d.sesi; if (terakhir.jenis === 'opname' && opTampil.nama === 'daftar') { opGambarDaftar(d.sesi); } }, function () { /* abaikan */ }).then(function () { polingJalan = false; });
+      return;
     }
-  }, 60000);
+    if (!opData || antreanSaya().length) { return; }
+    var a = document.activeElement, fokusCari = !!(a && a.tagName === 'INPUT' && a.type === 'search' && $('hasil').contains(a));
+    if (a && a.tagName === 'INPUT' && !fokusCari) { return; }   // sedang mengisi kolom lain
+    polingJalan = true;
+    opMuat(opData.sesi.id, true).then(function () {
+      if (terakhir.jenis !== 'opname' || $('formModal').classList.contains('buka') || antreanSaya().length) { return; }
+      var b = document.activeElement, nilai = fokusCari && b && b.type === 'search' ? b.value : null;
+      if (nilai !== null) { opTampil.q = nilai; opTampil.fokusCari = true; }
+      opRender();
+    }, function () { /* abaikan */ }).then(function () { polingJalan = false; });
+  }
+  setInterval(segarkanProgres, 12000);
+  setInterval(function () { var u = $('opUmur'); if (u) { u.textContent = umurTeks(); } }, 5000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) { segarkanProgres(); } });
   terapkanMerek();
   pasangTombolAdmin();
   muat();
