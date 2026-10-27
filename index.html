@@ -900,6 +900,8 @@
         tombol.push(el('button', { type: 'button', class: 'btn-rak',
           text: (it.fotoBarang ? 'Ganti' : 'Tambah') + ' foto barang',
           onclick: function () { pilihFoto(it, 'barang'); } }));
+        tombol.push(el('button', { type: 'button', class: 'btn-rak', text: 'Foto barang dari kamera',
+          onclick: function () { pilihFoto(it, 'barang', true); } }));
       } else {
         tombol.push(el('span', { class: 'meta', text: 'Isi kolom KODE di sheet agar bisa upload foto barang.' }));
       }
@@ -907,6 +909,8 @@
         tombol.push(el('button', { type: 'button', class: 'btn-rak',
           text: (it.fotoLokasi ? 'Ganti' : 'Tambah') + ' foto rak barang ini',
           onclick: function () { pilihFoto(it, 'lokasi'); } }));
+        tombol.push(el('button', { type: 'button', class: 'btn-rak', text: 'Foto rak dari kamera',
+          onclick: function () { pilihFoto(it, 'lokasi', true); } }));
         tombol.push(el('button', { type: 'button', class: 'btn-rak', text: 'Edit info barang', onclick: function () { formEdit(it); } }));
         tombol.push(el('button', { type: 'button', class: 'btn-rak', text: 'Pindahkan barang', onclick: function () { formPindah(it); } }));
       }
@@ -1281,10 +1285,11 @@
     });
   }
 
-  function pilihFoto(it, jenis) {
+  function pilihFoto(it, jenis, kamera) {
     var inp = document.createElement('input');
     inp.type = 'file';
     inp.accept = 'image/*';
+    if (kamera) { inp.setAttribute('capture', 'environment'); }   // langsung buka kamera belakang (HP)
     inp.onchange = function () { if (inp.files && inp.files[0]) { unggah(it, jenis, inp.files[0]); } };
     inp.click();
   }
@@ -1698,6 +1703,7 @@
   }
 
   // Muat ulang data dari server (cache server sudah dihapus), lalu tampilkan barangnya
+  var dariOpname = 0;   // true bila edit/pindah dibuka dari layar hitung opname: setelah simpan kembali ke opname, bukan ke kartu barang
   function segarkanDariServer(kode, pesan, bikinTombol) {
     setInfo('Memuat ulang data…');
     return ambilDariServer().then(function (items) {
@@ -1705,7 +1711,8 @@
       simpanLokal(items);
       dataSiap();
       var it = semua.filter(function (x) { return String(x.kode) === String(kode); })[0];
-      if (it) { $('q').value = it.nama; tampilSatu(it); }
+      if (dariOpname && Date.now() - dariOpname < 180000) { dariOpname = 0; try { if (opData) { opRender(); } } catch (e) { /* abaikan */ } }
+      else if (it) { $('q').value = it.nama; tampilSatu(it); }
       setInfo(pesan, '', it && bikinTombol ? bikinTombol(it) : null);
     }).catch(function (err) {
       setInfo('Tersimpan, tetapi gagal memuat ulang data: ' + (err && err.message ? err.message : err) + '. Buka ulang halaman.', 'peringatan');
@@ -1899,7 +1906,9 @@
 
   /* ---- data & status ---- */
 
-  function lingkup() { return semua.filter(function (x) { return x.kode && x.rak; }); }
+  function lingkup() { return semua.filter(function (x) { return x.kode; }); }   // termasuk barang yang belum punya rak (masuk grup "Tanpa rak")
+  function tanpaRakJumlah() { return semua.filter(function (x) { return x.kode && !String(x.rak || '').trim(); }).length; }
+  function labelRak(r) { return r.tanpa ? 'Tanpa rak' : 'Rak ' + bersihAwalan(r.nama, 'rak'); }
   function efektif(r) { return r.ulang !== null && r.ulang !== undefined ? r.ulang : r.jumlah; }
 
   // Baris hasil dari satu hitungan yang masih antre (dipakai untuk tampilan dan untuk menggabung setelah terkirim)
@@ -1955,11 +1964,12 @@
   function rakBerlingkup() {
     var p = {}, u = [];
     lingkup().forEach(function (x) {
-      var k = kunciRakOp(x.rak);
-      if (!p[k]) { p[k] = { kunci: k, nama: String(x.rak).trim(), items: [] }; u.push(k); }
+      var adaRak = !!String(x.rak || '').trim();
+      var k = adaRak ? kunciRakOp(x.rak) : '__tanpa_rak__';
+      if (!p[k]) { p[k] = { kunci: k, nama: adaRak ? String(x.rak).trim() : 'Tanpa rak', tanpa: !adaRak, items: [] }; u.push(k); }
       p[k].items.push(x);
     });
-    return u.map(function (k) { return p[k]; }).sort(function (a, b) { return a.nama.localeCompare(b.nama, 'id', { numeric: true }); });
+    return u.map(function (k) { return p[k]; }).sort(function (a, b) { return (a.tanpa ? 1 : 0) - (b.tanpa ? 1 : 0) || a.nama.localeCompare(b.nama, 'id', { numeric: true }); });
   }
   function petugasRak(kunci) {
     var t = ((opData && opData.tugas) || []).filter(function (x) { return kunciRakOp(x.rak) === kunci; })[0];
@@ -2235,6 +2245,10 @@
     if (!berjalan) { box.appendChild(el('p', { class: 'info peringatan', text: s.status === 'Diterapkan' ? 'Sesi ini sudah diterapkan ke stok.' : 'Sesi ini sudah ditutup. Hitungan baru tidak diterima.' })); }
     box.appendChild(barProgres(progres(peta, lingkup()), 'Seluruh gudang: '));
     box.appendChild(opBarSinkron());
+    var nTanpa = tanpaRakJumlah();
+    if (nTanpa) {
+      box.appendChild(el('p', { class: 'info peringatan', role: 'alert', text: nTanpa + ' barang belum punya rak. Tetap bisa dihitung lewat grup "Tanpa rak" di bawah.' + (admin ? ' Isi kolom rak di tab Barang agar masuk ke rak masing-masing.' : ' Beri tahu admin agar rak-nya diisi.') }));
+    }
 
     var cat = opCatatanEl();
     if (cat) { box.appendChild(cat); }
@@ -2299,7 +2313,7 @@
     raks.forEach(function (r) {
       var p = progres(peta, r.items), pet = petugasRak(r.kunci);
       blok.appendChild(el('button', { type: 'button', class: 'baris', onclick: function () { opTampil = { nama: 'rak', rak: r.kunci }; opRender(); } }, [
-        el('span', { class: 'nama' }, ['Rak ' + bersihAwalan(r.nama, 'rak'), el('small', { class: 'op-sub', text: pet ? 'Petugas: ' + pet : 'Belum dibagi' })]),
+        el('span', { class: 'nama' }, [labelRak(r), el('small', { class: 'op-sub', text: pet ? 'Petugas: ' + pet : 'Belum dibagi' })]),
         el('span', { class: 'ket', text: p.sudah + ' / ' + p.total + (p.sudah === p.total && p.total ? ' ✓' : '') })
       ]));
     });
@@ -2341,7 +2355,7 @@
 
   function opGambarRak(kunci) {
     var rak = rakBerlingkup().filter(function (r) { return r.kunci === kunci; })[0];
-    var box = opAwal(rak ? 'Rak ' + bersihAwalan(rak.nama, 'rak') : 'Rak', { teks: opData.sesi.nama, aksi: function () { opTampil = { nama: 'sesi', q: '' }; opRender(); } });
+    var box = opAwal(rak ? labelRak(rak) : 'Rak', { teks: opData.sesi.nama, aksi: function () { opTampil = { nama: 'sesi', q: '' }; opRender(); } });
     if (!rak) { box.appendChild(el('p', { class: 'info peringatan', text: 'Rak tidak ditemukan.' })); return; }
     var peta = hasilPeta(), pet = petugasRak(kunci);
     box.appendChild(el('p', { class: 'meta', text: pet ? 'Petugas: ' + pet : 'Rak ini belum dibagi ke petugas' }));
@@ -2439,7 +2453,7 @@
       orang.forEach(function (o) { sel.appendChild(el('option', { value: o.nama, text: o.nama + (o.peran === 'admin' ? ' (admin)' : '') })); });
       sel.value = petugasRak(r.kunci);
       pilih[r.nama] = sel;
-      blok.appendChild(el('div', { class: 'op-baris-tugas' }, [el('b', { text: 'Rak ' + bersihAwalan(r.nama, 'rak') }), el('small', { text: r.items.length + ' barang' }), sel]));
+      blok.appendChild(el('div', { class: 'op-baris-tugas' }, [el('b', { text: labelRak(r) }), el('small', { text: r.items.length + ' barang' }), sel]));
     });
     box.appendChild(blok);
     var simpan = el('button', { type: 'button', class: 'btn-rak', text: 'Simpan pembagian rak' });
@@ -2552,6 +2566,16 @@
     }
     cepat.push(el('button', { type: 'button', text: 'Tidak ditemukan', onclick: function () { simpan('tidak_ada', false); } }));
     isi.appendChild(el('div', { class: 'op-cepat' }, cepat));
+    if (modeAdmin() && it.kode) {   // admin: lengkapi data barang langsung dari daftar hitung (misal barang yang belum punya rak)
+      var lengkapi = [
+        el('button', { type: 'button', text: 'Isi / pindah rak', onclick: function () { tutupForm(); dariOpname = Date.now(); formPindah(it); } }),
+        el('button', { type: 'button', text: 'Edit info', onclick: function () { tutupForm(); dariOpname = Date.now(); formEdit(it); } }),
+        el('button', { type: 'button', text: 'Foto barang (kamera)', onclick: function () { tutupForm(); pilihFoto(it, 'barang', true); } }),
+        el('button', { type: 'button', text: 'Foto rak (kamera)', onclick: function () { tutupForm(); pilihFoto(it, 'lokasi', true); } })
+      ];
+      isi.appendChild(el('p', { class: 'meta', text: 'Khusus admin: lengkapi data barang ini' }));
+      isi.appendChild(el('div', { class: 'op-cepat' }, lengkapi));
+    }
     form.appendChild(isi);
     var tombolSimpan = el('button', { type: 'submit', text: 'Simpan' });
     var tombolNext = konteks && konteks.length > 1 ? el('button', { type: 'button', class: 'lagi', text: 'Simpan & berikutnya', onclick: function () { simpan('dihitung', true); } }) : null;
