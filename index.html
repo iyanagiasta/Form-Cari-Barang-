@@ -30,6 +30,37 @@
   }
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
+
+  /* ---------- Tema gelap / terang (tombol di kepala) ---------- */
+  html[data-tema="gelap"] {
+    color-scheme: dark;
+    --laut-tua: #cfeefa; --laut: #6cc8ea; --aqua: #4cc3f0; --aqua-teks: #04202c;
+    --bg: #050f1a; --kartu: #0e2438; --teks: #e8f3f8; --redup: #8fb0c2; --garis: rgba(120, 190, 220, .2);
+    --aksen: #4cc3f0; --aksen-teks: #04202c; --aksen-lembut: rgba(76, 195, 240, .14);
+    --peringatan: #f2d27a; --peringatan-bg: #3a2f10; --galat: #ffb3b3; --galat-bg: #4a1b20;
+  }
+  html[data-tema="gelap"] body { background: radial-gradient(900px 420px at 90% -4%, rgba(47, 208, 196, .13), transparent 70%), var(--bg); background-repeat: no-repeat; background-attachment: fixed; }
+  html[data-tema="gelap"] .kepala { background: linear-gradient(135deg, #04121f 0%, #0a3556 60%, #0f6f93 100%); }
+  html[data-tema="gelap"] .logo, html[data-tema="gelap"] input[type=search], html[data-tema="gelap"] .form-kotak,
+  html[data-tema="gelap"] .rak-sheet, html[data-tema="gelap"] .form-kaki, html[data-tema="gelap"] .field input[type=text],
+  html[data-tema="gelap"] .field select, html[data-tema="gelap"] .op-cari input, html[data-tema="gelap"] .op-baris-tugas select { background: var(--kartu); color: var(--teks); }
+  html[data-tema="gelap"] .logo { background: rgba(255, 255, 255, .92); }
+  html[data-tema="gelap"] .saran, html[data-tema="gelap"] .saran-label { background: var(--kartu); color: var(--teks); }
+  html[data-tema="gelap"] .saran-label { background: var(--peringatan-bg); color: var(--peringatan); }
+  html[data-tema="gelap"] .sukses, html[data-tema="gelap"] .op-sinkron, html[data-tema="gelap"] .op-ok { background: #123524; color: #8be0ac; }
+  html[data-tema="gelap"] .op-ok:active { background: #1a4a31; }
+  html[data-tema="gelap"] [style*="#eef6f9"] { background: var(--aksen-lembut) !important; }
+  html[data-tema="gelap"] .info, html[data-tema="gelap"] .info.peringatan { color: var(--peringatan); }
+  html[data-tema="gelap"] .form-tombol button[type=submit], html[data-tema="gelap"] .rak-baru button { background: linear-gradient(135deg, #2fd0c4, #4cc3f0); color: #04202c; border-color: transparent; }
+  html[data-tema="gelap"] .form-tombol button.lagi, html[data-tema="gelap"] .form-tombol button.lagi[type=submit] { background: var(--aksen-lembut); color: var(--laut-tua); border: 1.5px solid var(--garis); }
+  html[data-tema="gelap"] .op-cepat button { background: var(--aksen-lembut); }
+  html[data-tema="gelap"] .op-jumlah input, html[data-tema="gelap"] textarea, html[data-tema="gelap"] .field textarea { background: var(--kartu); color: var(--teks); }
+  html[data-tema="gelap"] .ticker { background: #0a3556; }
+  html[data-tema="gelap"] .kartu, html[data-tema="gelap"] .saran-item { color: var(--teks); }
+  .btn-tema { flex-shrink: 0; min-height: 44px; min-width: 44px; border-radius: 999px; border: 0; background: rgba(255, 255, 255, .16); color: #fff; font-size: 1.05rem; cursor: pointer; }
+  .btn-utama ~ .btn-tema { margin-left: 0; }
+  .btn-gembok { margin-left: 0; }
+
   body {
     margin: 0;
     background: var(--bg);
@@ -355,6 +386,15 @@
 </style>
 </head>
 <body>
+<script>
+(function(){
+  var h=document.documentElement,K='sctk_tema';
+  function baca(){try{return localStorage.getItem(K)==='terang'?'terang':'gelap';}catch(e){return 'gelap';}}
+  function pasang(t){h.setAttribute('data-tema',t);var b=document.getElementById('temaBtn');if(b){b.innerHTML=t==='terang'?'&#127769;':'&#9728;';}}
+  pasang(baca());
+  document.addEventListener('DOMContentLoaded',function(){var b=document.getElementById('temaBtn');pasang(baca());if(b){b.onclick=function(){var t=h.getAttribute('data-tema')==='terang'?'gelap':'terang';try{localStorage.setItem(K,t);}catch(e){}pasang(t);};}});
+})();
+</script>
 
 <header class="kepala">
   <div class="wrap">
@@ -362,6 +402,7 @@
       <div class="logo" id="logo" aria-hidden="true"></div>
       <div class="merek"><b id="perusahaan"></b><span id="bagian"></span></div>
       <a class="btn-utama" id="keUtama" href="https://iyanagiasta.github.io/formpermintaanbarang/dashboard.html" aria-label="Kembali ke halaman utama">&larr; Halaman Utama</a>
+      <button type="button" id="temaBtn" class="btn-tema" aria-label="Ganti tema terang atau gelap"></button>
       <button type="button" id="gembok" class="btn-gembok" aria-label="Masuk mode admin"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></button>
     </div>
     <div class="hero">
