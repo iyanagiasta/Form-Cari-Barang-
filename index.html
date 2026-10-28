@@ -217,6 +217,16 @@
   .hapus-q[hidden] { display: none; }
 
   /* ---------- Formulir (lembar dari bawah di HP, kotak di tengah di layar lebar) ---------- */
+  .scan-lapis { position: fixed; inset: 0; z-index: 35; background: #000; display: flex; flex-direction: column; color: #fff; }
+  .scan-atas { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: #0a2a43; }
+  .scan-atas b { flex: 1; }
+  .scan-atas button { min-height: 40px; padding: 0 12px; border: 0; border-radius: 999px; background: rgba(255,255,255,.18); color: #fff; font: inherit; font-weight: 600; }
+  .scan-video { position: relative; flex: 1; min-height: 0; background: #000; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .scan-video video { width: 100%; height: 100%; object-fit: cover; }
+  .scan-bingkai { position: absolute; left: 8%; right: 8%; top: 32%; height: 36%; border: 3px solid #2fd0c4; border-radius: 12px; box-shadow: 0 0 0 9999px rgba(0,0,0,.35); pointer-events: none; }
+  .scan-status { padding: 10px 14px; text-align: center; font-weight: 700; background: #12304a; }
+  .scan-status.ok { background: #17653a; } .scan-status.salah { background: #8a1c28; }
+  .scan-tips { margin: 0; padding: 8px 14px 14px; font-size: .8rem; color: #b8cdd8; text-align: center; background: #12304a; }
   .modal { position: fixed; inset: 0; z-index: 40; display: none; background: rgba(3, 20, 32, .6); align-items: flex-end; justify-content: center; }
   .modal.buka { display: flex; }
   #pilihRak { z-index: 50; }
@@ -2343,6 +2353,7 @@
     hapus.addEventListener('mousedown', function (e) { e.preventDefault(); });
     hapus.addEventListener('click', function () { cariInp.value = ''; gambarCari(); cariInp.focus(); });
     box.appendChild(el('div', { class: 'op-cari' }, [el('div', { class: 'kotak-input' }, [cariInp, hapus])]));
+    box.appendChild(el('button', { type: 'button', class: 'btn-rak', id: 'opScan', style: 'margin-top:8px', text: 'Scan kamera (barcode)', onclick: mulaiScan, disabled: berjalan ? null : 'disabled' }));
     if (!norm(opTampil.q) && opTampil.tadi && opTampil.tadi.q) {
       box.appendChild(el('button', { type: 'button', class: 'btn-rak', id: 'opTadi', style: 'margin-top:8px', text: 'Hasil tadi: ' + opTampil.tadi.q + ' (' + opTampil.tadi.n + ')',
         onclick: function () { cariInp.value = opTampil.tadi.q; gambarCari(); cariInp.focus(); } }));
@@ -2536,6 +2547,226 @@
       if (c !== it && c.kode && !peta[kunciKode(c.kode)]) { return c; }
     }
     return null;
+  }
+
+  /* ---------- Scan kamera (opname): pemindai Code 128 tanpa pustaka luar, jalan di Android dan iPhone ---------- */
+  var C128P = ["212222","222122","222221","121223","121322","131222","122213","122312","132212","221213","221312","231212","112232","122132","122231","113222","123122","123221","223211","221132","221231","213212","223112","312131","311222","321122","321221","312212","322112","322211","212123","212321","232121","111323","131123","131321","112313","132113","132311","211313","231113","231311","112133","112331","132131","113123","113321","133121","313121","211331","231131","213113","213311","213131","311123","311321","331121","312113","312311","332111","314111","221411","431111","111224","111422","121124","121421","141122","141221","112214","112412","122114","122411","142112","142211","241211","221114","413111","241112","134111","111242","121142","121241","114212","124112","124211","411212","421112","421211","212141","214121","412121","111143","111341","131141","114113","114311","411113","411311","113141","114131","311141","411131","211412","211214","211232","233111"];
+  var C128M = null, C128R = null;
+  function c128Siap() {
+    if (C128M) { return; }
+    C128M = {}; C128R = {};
+    C128P.forEach(function (p, v) { C128M[p] = v; C128R[p.split('').reverse().join('')] = v; });
+  }
+  function simbol128(r, i, tabel) {      // baca 6 garis dari indeks i, kembalikan nilai simbol atau -1
+    if (i + 6 > r.length) { return -1; }
+    var t = 0, k;
+    for (k = 0; k < 6; k++) { t += r[i + k]; }
+    var u = t / 11, p = '', jum = 0;
+    if (u < 1) { return -1; }
+    for (k = 0; k < 6; k++) { var w = Math.round(r[i + k] / u); if (w < 1 || w > 4) { return -1; } jum += w; p += w; }
+    if (jum !== 11) { return -1; }
+    var v = tabel[p];
+    return v === undefined ? -1 : v;
+  }
+  function teks128(v) {                  // v = [start, data..., cek]
+    var set = v[0] === 105 ? 'C' : v[0] === 103 ? 'A' : 'B', out = '', i, x;
+    for (i = 1; i < v.length - 1; i++) {
+      x = v[i];
+      if (set === 'C') {
+        if (x < 100) { out += (x < 10 ? '0' : '') + x; } else if (x === 100) { set = 'B'; } else if (x === 101) { set = 'A'; } else { return null; }
+      } else if (x === 99) { set = 'C'; }
+      else if (x === 100 && set === 'A') { set = 'B'; }
+      else if (x === 101 && set === 'B') { set = 'A'; }
+      else if (x < 96 && !(set === 'A' && x >= 64)) { out += String.fromCharCode(set === 'A' ? x + 32 : x + 32); }
+      else { return null; }
+    }
+    return out;
+  }
+  function cekSum128(v) {
+    var s = v[0], i;
+    for (i = 1; i < v.length - 1; i++) { s += v[i] * i; }
+    return s % 103 === v[v.length - 1];
+  }
+  function dekodeGaris(r) {              // r = panjang garis bergantian mulai dari batang gelap
+    c128Siap();
+    var s, i, v;
+    for (s = 0; s + 12 <= r.length; s += 2) {
+      v = simbol128(r, s, C128M);
+      if (v < 103 || v > 105) { continue; }
+      if (s > 0) { var u0 = (r[s] + r[s + 1] + r[s + 2] + r[s + 3] + r[s + 4] + r[s + 5]) / 11; if (r[s - 1] < 3 * u0) { continue; } }
+      var vals = [v], pos = s + 6, ok = false;
+      while (vals.length < 70) {
+        var x = simbol128(r, pos, C128M);
+        if (x === -1) { break; }
+        if (x === 106) { ok = true; break; }
+        vals.push(x); pos += 6;
+      }
+      if (ok && vals.length >= 3 && cekSum128(vals)) { var t = teks128(vals); if (t) { return t; } }
+    }
+    return null;
+  }
+  function dekodeGarisBalik(r) {         // pembacaan dari kanan ke kiri
+    c128Siap();
+    var s, i;
+    for (s = 0; s + 13 <= r.length; s += 2) {
+      var t7 = 0, k, p7 = '', jum = 0;
+      for (k = 0; k < 7; k++) { t7 += r[s + k]; }
+      var u = t7 / 13; if (u < 1) { continue; }
+      for (k = 0; k < 7; k++) { var w = Math.round(r[s + k] / u); if (w < 1 || w > 4) { jum = -1; break; } jum += w; p7 += w; }
+      if (jum !== 13 || p7 !== '2111332') { continue; }
+      var vals = [], pos = s + 7, ok = false;
+      while (vals.length < 70) {
+        var x = simbol128(r, pos, C128R);
+        if (x === -1) { break; }
+        vals.push(x); pos += 6;
+        if (x >= 103 && x <= 105) { ok = true; break; }
+      }
+      if (!ok) { continue; }
+      vals.reverse();
+      if (vals.length >= 3 && cekSum128(vals)) { var t = teks128(vals); if (t) { return t; } }
+    }
+    return null;
+  }
+  function garisKeRun(g, n) {            // ambang adaptif (titik tengah min-maks lokal) -> panjang garis gelap/terang bergantian
+    var B = 8, nb = Math.ceil(n / B), mn = new Float32Array(nb), mx = new Float32Array(nb), i, j;
+    for (j = 0; j < nb; j++) {
+      var lo = 255, hi = 0, e = Math.min(n, (j + 1) * B);
+      for (i = j * B; i < e; i++) { if (g[i] < lo) { lo = g[i]; } if (g[i] > hi) { hi = g[i]; } }
+      mn[j] = lo; mx[j] = hi;
+    }
+    var wb = Math.max(3, Math.round(n / B / 9)), pos = [], prevGelap = false, prevG = 0, prevT = 0;
+    for (i = 0; i < n; i++) {
+      var c = Math.floor(i / B), a = Math.max(0, c - wb), z = Math.min(nb - 1, c + wb), lo2 = 255, hi2 = 0;
+      for (j = a; j <= z; j++) { if (mn[j] < lo2) { lo2 = mn[j]; } if (mx[j] > hi2) { hi2 = mx[j]; } }
+      var t = (lo2 + hi2) / 2, kontras = hi2 - lo2 >= 40, gelap = kontras && g[i] < t;
+      if (i > 0 && gelap !== prevGelap) {   // titik peralihan dengan interpolasi sub-piksel
+        var tt = (t + prevT) / 2, d = g[i] - prevG, f = d === 0 ? 0.5 : (tt - prevG) / d;
+        pos.push({ x: i - 1 + Math.max(0, Math.min(1, f)), gelap: gelap });
+      }
+      prevGelap = gelap; prevG = g[i]; prevT = t;
+    }
+    var runs = [], k = 0;
+    while (k < pos.length && !pos[k].gelap) { k++; }       // mulai dari awal batang gelap pertama
+    for (; k + 1 < pos.length; k++) { runs.push(pos[k + 1].x - pos[k].x); }
+    return runs;
+  }
+  function dekodeCitra(gray, w, h) {     // coba banyak garis mendatar di tengah gambar
+    var y, n = 0, hasil = null;
+    var langkah = Math.max(2, Math.round(h / 36));
+    for (y = Math.round(h * 0.18); y < h * 0.82 && !hasil; y += langkah) {
+      var g = new Float32Array(w), x;
+      for (x = 0; x < w; x++) { g[x] = (gray[(y - 1) * w + x] + gray[y * w + x] + gray[(y + 1) * w + x]) / 3; }
+      var r = garisKeRun(g, w);
+      if (r.length < 20) { continue; }
+      hasil = dekodeGaris(r);
+      if (!hasil) { hasil = dekodeGarisBalik(r); }
+    }
+    return hasil;
+  }
+
+  var scanSt = null;
+  function bunyiScan(ok) {
+    try { if (navigator.vibrate) { navigator.vibrate(ok ? 70 : [60, 60, 60]); } } catch (e) { /* abaikan */ }
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext; if (!AC) { return; }
+      var ac = scanSt && scanSt.ac ? scanSt.ac : (scanSt.ac = new AC()), o = ac.createOscillator(), gn = ac.createGain();
+      o.frequency.value = ok ? 1500 : 300; gn.gain.value = 0.12; o.connect(gn); gn.connect(ac.destination); o.start(); o.stop(ac.currentTime + (ok ? 0.12 : 0.3));
+    } catch (e) { /* abaikan */ }
+  }
+  function tutupScan() {
+    if (!scanSt) { return; }
+    scanSt.tutup = true;
+    try { if (scanSt.stream) { scanSt.stream.getTracks().forEach(function (t) { t.stop(); }); } } catch (e) { /* abaikan */ }
+    try { if (scanSt.ac) { scanSt.ac.close(); } } catch (e) { /* abaikan */ }
+    var l = $('scanLapis'); if (l) { l.parentNode.removeChild(l); }
+    document.body.style.overflow = '';
+    scanSt = null;
+  }
+  function scanStatus(teks, jenis) {
+    var s = $('scanStatus'); if (!s) { return; }
+    s.textContent = teks; s.className = 'scan-status' + (jenis ? ' ' + jenis : '');
+  }
+  function cariKodePersis(teks) {
+    var k = kunciKode(teks), hit = null;
+    semua.forEach(function (it) { if (!hit && kunciKode(it.kode) === k) { hit = it; } });
+    return hit;
+  }
+  function hasilScan(teks) {
+    scanSt.blok = teks; scanSt.blokSampai = Date.now() + 1500;   // kode yang sama diabaikan selama masih terlihat di kamera
+    var it = cariKodePersis(teks);
+    if (!it) { bunyiScan(false); scanStatus('Kode "' + teks + '" tidak ada di data barang.', 'salah'); scanSt.jeda = Date.now() + 2500; return; }
+    var r = hasilPeta()[kunciKode(it.kode)];
+    bunyiScan(true);
+    if (r && r.status !== 'Temuan') {
+      var tek = it.nama + ' sudah dihitung oleh ' + (r.oleh || '-') + ': ' + (r.status === 'Tidak ditemukan' ? 'tidak ditemukan' : fmtAngka(efektif(r))) + '.\n\nHitung lagi dan timpa hasil sebelumnya?';
+      if (!window.confirm(tek)) { scanStatus('Dilewati: ' + it.nama, ''); scanSt.jeda = Date.now() + 2000; return; }
+    }
+    scanStatus('Terbaca: ' + it.nama, 'ok');
+    scanSt.jeda = Date.now() + 800;
+    bukaHitung(it, [it], 'scan');
+  }
+  function mulaiScan() {
+    if (scanSt) { return; }
+    if (!opData || opData.sesi.status !== 'Berjalan') { window.alert('Sesi sudah ditutup. Hitungan baru tidak diterima.'); return; }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { window.alert('Kamera tidak bisa dipakai di sini. Buka aplikasi lewat alamat https:// di Chrome (Android) atau Safari (iPhone).'); return; }
+    scanSt = { tutup: false, jeda: 0, terakhir: '', hitung: 0, stream: null, ac: null, kuat: 0, blok: '', blokSampai: 0 };
+    var video = el('video', { playsinline: 'true', muted: 'true', autoplay: 'true' });
+    video.muted = true;
+    var status = el('div', { id: 'scanStatus', class: 'scan-status', role: 'status', 'aria-live': 'polite', text: 'Menyalakan kamera…' });
+    var senter = el('button', { type: 'button', id: 'scanSenter', text: 'Senter', hidden: 'hidden' });
+    var lapis = el('div', { id: 'scanLapis', class: 'scan-lapis' }, [
+      el('div', { class: 'scan-atas' }, [el('b', { text: 'Scan barcode barang' }), senter, el('button', { type: 'button', id: 'scanTutup', text: 'Tutup kamera', onclick: tutupScan })]),
+      el('div', { class: 'scan-video' }, [video, el('div', { class: 'scan-bingkai' })]),
+      status,
+      el('p', { class: 'scan-tips', text: 'Arahkan barcode mendatar ke dalam bingkai, jarak 10 sampai 20 cm. Setelah menyimpan hitungan, kamera siap untuk barang berikutnya.' })
+    ]);
+    document.body.appendChild(lapis);
+    document.body.style.overflow = 'hidden';
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }).then(function (st) {
+      if (!scanSt || scanSt.tutup) { st.getTracks().forEach(function (t) { t.stop(); }); return; }
+      scanSt.stream = st; video.srcObject = st;
+      try {
+        var tr = st.getVideoTracks()[0], cap = tr.getCapabilities ? tr.getCapabilities() : {};
+        if (cap.torch) { senter.hidden = false; var nyala = false; senter.onclick = function () { nyala = !nyala; tr.applyConstraints({ advanced: [{ torch: nyala }] }).catch(function () { /* abaikan */ }); }; }
+        if (cap.focusMode && cap.focusMode.indexOf('continuous') >= 0) { tr.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(function () { /* abaikan */ }); }
+      } catch (e) { /* abaikan */ }
+      var p = video.play(); if (p && p.catch) { p.catch(function () { /* abaikan */ }); }
+      scanStatus('Arahkan kamera ke barcode.', '');
+      putarScan(video);
+    }).catch(function (e) {
+      var izin = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
+      scanStatus(izin ? 'Izin kamera ditolak. Izinkan kamera untuk situs ini di pengaturan browser, lalu coba lagi.' : 'Kamera tidak bisa dibuka: ' + ((e && e.message) || 'tidak dikenal'), 'salah');
+    });
+  }
+  function putarScan(video) {
+    var kanvas = document.createElement('canvas'), cx = kanvas.getContext('2d', { willReadFrequently: true }), bd = null, bdCoba = false;
+    function tangkap(teks) {
+      if (!scanSt) { return; }
+      var s = scanSt;
+      if (s.blok && teks === s.blok) { s.blokSampai = Date.now() + 1500; return; }
+      if (teks === s.terakhir) { s.kuat++; } else { s.terakhir = teks; s.kuat = 1; }
+      if (s.kuat >= 2) { s.kuat = 0; s.terakhir = ''; hasilScan(teks); }
+    }
+    function langkah() {
+      if (!scanSt || scanSt.tutup) { return; }
+      var modalBuka = $('formModal') && $('formModal').classList.contains('buka');
+      if (modalBuka || Date.now() < scanSt.jeda || video.readyState < 2 || !video.videoWidth) { setTimeout(langkah, 200); return; }
+      var w = Math.min(960, video.videoWidth), h = Math.round(video.videoHeight * w / video.videoWidth);
+      kanvas.width = w; kanvas.height = h;
+      var tahap = Promise.resolve(null);
+      if (window.BarcodeDetector && bd !== false) {
+        if (!bd) { try { bd = new window.BarcodeDetector({ formats: ['code_128'] }); } catch (e) { bd = false; } }
+        if (bd) { tahap = bd.detect(video).then(function (r) { return r && r.length ? String(r[0].rawValue) : null; }).catch(function () { bd = false; return null; }); }
+      }
+      tahap.then(function (t) {
+        if (t) { return t; }
+        cx.drawImage(video, 0, 0, w, h);
+        var d = cx.getImageData(0, 0, w, h).data, g = new Uint8Array(w * h), i;
+        for (i = 0; i < w * h; i++) { g[i] = (d[i * 4] * 77 + d[i * 4 + 1] * 150 + d[i * 4 + 2] * 29) >> 8; }
+        return dekodeCitra(g, w, h);
+      }).then(function (t) { if (t) { tangkap(t); } else if (scanSt && scanSt.blok && Date.now() > scanSt.blokSampai) { scanSt.blok = ''; } }).catch(function () { /* abaikan */ }).then(function () { if (scanSt && !scanSt.tutup) { setTimeout(langkah, 90); } });
+    }
+    langkah();
   }
 
   function bukaHitung(it, konteks, asal) {
