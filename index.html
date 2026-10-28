@@ -1422,7 +1422,8 @@
     m.classList.remove('buka');
     m.innerHTML = '';
     tutupPilihRak();
-    document.body.style.overflow = '';
+    document.body.style.overflow = scanSt ? 'hidden' : '';
+    if (scanSt && !scanSt.tutup) { setTimeout(function () { nyalakanKamera(); }, 250); }
   }
 
   function lokasiTeks(rak, tingkat, kolom) {
@@ -2724,7 +2725,9 @@
     }
     scanStatus('Terbaca: ' + it.nama, 'ok');
     scanSt.jeda = Date.now() + 800;
+    matikanKamera();
     bukaHitung(it, [it], 'scan');
+    if (!($('formModal') && $('formModal').classList.contains('buka'))) { nyalakanKamera(); }
   }
   function bacaFoto(file) {                // cadangan: foto resolusi tinggi lalu dibaca
     scanStatus('Membaca foto…', '');
@@ -2766,21 +2769,39 @@
     document.body.style.overflow = 'hidden';
     $('scanFoto').onchange = function () { var f = this.files && this.files[0]; this.value = ''; if (f) { bacaFoto(f); } };
     scanSt.dbg = setInterval(function () { var d = $('scanDebug'); if (!d || !scanSt) { return; } d.textContent = 'Kamera ' + (scanSt.resol || '-') + ' · pembaca ' + (window.BarcodeDetector ? 'bawaan + internal' : 'internal') + ' · garis terlihat ' + (scanSt.lihat || 0) + ' · frame ' + (scanSt.bingkai || 0); }, 700);
+    scanSt.video = video; scanSt.senter = senter;
+    nyalakanKamera(true);
+  }
+  /* Menyalakan kamera (dipakai saat awal dan setelah form hitung ditutup, supaya kamera tidak beku) */
+  function nyalakanKamera(awal) {
+    if (!scanSt || scanSt.tutup || scanSt.menyala) { return; }
+    scanSt.menyala = true;
+    var video = scanSt.video, senter = scanSt.senter;
+    if (!awal) { scanStatus('Menyalakan kamera lagi…', ''); }
     navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }).then(function (st) {
       if (!scanSt || scanSt.tutup) { st.getTracks().forEach(function (t) { t.stop(); }); return; }
       scanSt.stream = st; video.srcObject = st;
       try {
         var tr = st.getVideoTracks()[0], cap = tr.getCapabilities ? tr.getCapabilities() : {};
+        tr.addEventListener('ended', function () { if (scanSt && scanSt.stream === st) { scanSt.menyala = false; scanSt.stream = null; } });
         if (cap.torch) { senter.hidden = false; var nyala = false; senter.onclick = function () { nyala = !nyala; tr.applyConstraints({ advanced: [{ torch: nyala }] }).catch(function () { /* abaikan */ }); }; }
         if (cap.focusMode && cap.focusMode.indexOf('continuous') >= 0) { tr.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(function () { /* abaikan */ }); }
       } catch (e) { /* abaikan */ }
       var p = video.play(); if (p && p.catch) { p.catch(function () { /* abaikan */ }); }
+      scanSt.ct = -1; scanSt.ctT = Date.now();
       scanStatus('Arahkan kamera ke barcode.', '');
-      putarScan(video);
+      if (!scanSt.berputar) { scanSt.berputar = true; putarScan(video); }
     }).catch(function (e) {
+      if (scanSt) { scanSt.menyala = false; }
       var izin = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
       scanStatus(izin ? 'Izin kamera ditolak. Izinkan kamera untuk situs ini di pengaturan browser, lalu coba lagi.' : 'Kamera tidak bisa dibuka: ' + ((e && e.message) || 'tidak dikenal'), 'salah');
     });
+  }
+  function matikanKamera() {
+    if (!scanSt) { return; }
+    try { if (scanSt.stream) { scanSt.stream.getTracks().forEach(function (t) { t.stop(); }); } } catch (e) { /* abaikan */ }
+    scanSt.stream = null; scanSt.menyala = false;
+    try { if (scanSt.video) { scanSt.video.srcObject = null; } } catch (e) { /* abaikan */ }
   }
   function putarScan(video) {
     var kanvas = document.createElement('canvas'), cx = kanvas.getContext('2d', { willReadFrequently: true }), bd = null, bdCoba = false;
@@ -2794,13 +2815,19 @@
     function langkah() {
       if (!scanSt || scanSt.tutup) { return; }
       var modalBuka = $('formModal') && $('formModal').classList.contains('buka');
+      if (!modalBuka && !scanSt.menyala && !scanSt.stream) { nyalakanKamera(); }
+      if (!modalBuka && scanSt.stream) {          // pengaman: gambar tidak bergerak berarti kamera beku, nyalakan ulang
+        if (video.paused) { var pp = video.play(); if (pp && pp.catch) { pp.catch(function () { /* abaikan */ }); } }
+        if (video.currentTime !== scanSt.ct) { scanSt.ct = video.currentTime; scanSt.ctT = Date.now(); }
+        else if (Date.now() - scanSt.ctT > 3000) { matikanKamera(); scanSt.ctT = Date.now(); nyalakanKamera(); setTimeout(langkah, 400); return; }
+      }
       if (modalBuka || Date.now() < scanSt.jeda || video.readyState < 2 || !video.videoWidth) { setTimeout(langkah, 200); return; }
       var w = Math.min(1280, video.videoWidth), h = Math.round(video.videoHeight * w / video.videoWidth);
       kanvas.width = w; kanvas.height = h;
       var tahap = Promise.resolve(null);
       if (window.BarcodeDetector && bd !== false) {
         if (!bd) { try { bd = new window.BarcodeDetector({ formats: ['code_128'] }); } catch (e) { bd = false; } }
-        if (bd) { tahap = bd.detect(video).then(function (r) { return r && r.length ? String(r[0].rawValue) : null; }).catch(function () { bd = false; return null; }); }
+        if (bd) { tahap = Promise.race([bd.detect(video), new Promise(function (res) { setTimeout(function () { res([]); }, 1500); })]).then(function (r) { return r && r.length ? String(r[0].rawValue) : null; }).catch(function () { bd = false; return null; }); }
       }
       tahap.then(function (t) {
         if (t) { return t; }
