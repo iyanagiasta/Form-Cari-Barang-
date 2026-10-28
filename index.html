@@ -226,6 +226,8 @@
   .scan-bingkai { position: absolute; left: 8%; right: 8%; top: 32%; height: 36%; border: 3px solid #2fd0c4; border-radius: 12px; box-shadow: 0 0 0 9999px rgba(0,0,0,.35); pointer-events: none; }
   .scan-status { padding: 10px 14px; text-align: center; font-weight: 700; background: #12304a; }
   .scan-status.ok { background: #17653a; } .scan-status.salah { background: #8a1c28; }
+  .scan-alat { display: flex; gap: 8px; padding: 8px 12px; background: #12304a; } .scan-alat button { flex: 1; min-height: 42px; border: 0; border-radius: 999px; background: rgba(255,255,255,.18); color: #fff; font: inherit; font-weight: 600; }
+  .scan-debug { padding: 4px 12px; font-size: .7rem; color: #8fb0c2; background: #12304a; text-align: center; }
   .scan-tips { margin: 0; padding: 8px 14px 14px; font-size: .8rem; color: #b8cdd8; text-align: center; background: #12304a; }
   .modal { position: fixed; inset: 0; z-index: 40; display: none; background: rgba(3, 20, 32, .6); align-items: flex-end; justify-content: center; }
   .modal.buka { display: flex; }
@@ -2662,10 +2664,10 @@
     return runs;
   }
   function dekodeCitra(gray, w, h, info) {     // coba banyak garis mendatar di tengah gambar, dengan beberapa ambang
-    var y, hasil = null, langkah = Math.max(2, Math.round(h / 40)), ada = 0, bias = [0.5, 0.42, 0.58], bi;
+    var y, hasil = null, langkah = Math.max(2, Math.round(h / 44)), ada = 0, bias = (info && info.cepat) ? [0.5] : [0.5, 0.42, 0.58], bi;
     for (y = Math.round(h * 0.15); y < h * 0.85 && !hasil; y += langkah) {
       var g = new Float32Array(w), x;
-      for (x = 0; x < w; x++) { g[x] = (gray[(y - 1) * w + x] + gray[y * w + x] + gray[(y + 1) * w + x]) / 3; }
+      for (x = 0; x < w; x++) { g[x] = (gray[(y - 2) * w + x] + gray[(y - 1) * w + x] + gray[y * w + x] + gray[(y + 1) * w + x] + gray[(y + 2) * w + x]) / 5; }
       for (bi = 0; bi < bias.length && !hasil; bi++) {
         var r = garisKeRun(g, w, bias[bi]);
         if (r.length < 20) { continue; }
@@ -2694,7 +2696,7 @@
   }
   function tutupScan() {
     if (!scanSt) { return; }
-    scanSt.tutup = true;
+    scanSt.tutup = true; try { clearInterval(scanSt.dbg); } catch (e) { /* abaikan */ }
     try { if (scanSt.stream) { scanSt.stream.getTracks().forEach(function (t) { t.stop(); }); } } catch (e) { /* abaikan */ }
     try { if (scanSt.ac) { scanSt.ac.close(); } } catch (e) { /* abaikan */ }
     var l = $('scanLapis'); if (l) { l.parentNode.removeChild(l); }
@@ -2706,8 +2708,8 @@
     s.textContent = teks; s.className = 'scan-status' + (jenis ? ' ' + jenis : '');
   }
   function cariKodePersis(teks) {
-    var k = kunciKode(teks), hit = null;
-    semua.forEach(function (it) { if (!hit && kunciKode(it.kode) === k) { hit = it; } });
+    var k = kunciKode(teks), t = String(teks).trim(), hit = null;
+    semua.forEach(function (it) { if (!hit && (kunciKode(it.kode) === k || (it.idbc && String(it.idbc).trim() === t))) { hit = it; } });
     return hit;
   }
   function hasilScan(teks) {
@@ -2724,6 +2726,21 @@
     scanSt.jeda = Date.now() + 800;
     bukaHitung(it, [it], 'scan');
   }
+  function bacaFoto(file) {                // cadangan: foto resolusi tinggi lalu dibaca
+    scanStatus('Membaca foto…', '');
+    var url = URL.createObjectURL(file), img = new Image();
+    img.onload = function () {
+      var sk = Math.min(1, 2000 / Math.max(img.width, img.height)), w = Math.round(img.width * sk), h = Math.round(img.height * sk);
+      var k = document.createElement('canvas'); k.width = w; k.height = h;
+      var cx = k.getContext('2d', { willReadFrequently: true }); cx.drawImage(img, 0, 0, w, h); URL.revokeObjectURL(url);
+      var d = cx.getImageData(0, 0, w, h).data, g = new Uint8Array(w * h), i;
+      for (i = 0; i < w * h; i++) { g[i] = (d[i * 4] * 77 + d[i * 4 + 1] * 150 + d[i * 4 + 2] * 29) >> 8; }
+      var t = dekodeCitra(g, w, h, {}) || dekodeCitra(putar90(g, w, h), h, w, {});
+      if (t) { hasilScan(t); } else { scanStatus('Barcode di foto tidak terbaca. Ambil foto lebih dekat, barcode mendatar dan tajam.', 'salah'); }
+    };
+    img.onerror = function () { scanStatus('Foto tidak bisa dibuka.', 'salah'); };
+    img.src = url;
+  }
   function mulaiScan() {
     if (scanSt) { return; }
     if (!opData || opData.sesi.status !== 'Berjalan') { window.alert('Sesi sudah ditutup. Hitungan baru tidak diterima.'); return; }
@@ -2737,10 +2754,18 @@
       el('div', { class: 'scan-atas' }, [el('b', { text: 'Scan barcode barang' }), senter, el('button', { type: 'button', id: 'scanTutup', text: 'Tutup kamera', onclick: tutupScan })]),
       el('div', { class: 'scan-video' }, [video, el('div', { class: 'scan-bingkai' })]),
       status,
+      el('div', { class: 'scan-alat' }, [
+        el('button', { type: 'button', text: 'Foto barcode', onclick: function () { $('scanFoto').click(); } }),
+        el('button', { type: 'button', text: 'Ketik kode', onclick: function () { var k = window.prompt('Ketik kode barang persis seperti di label:'); if (k && k.trim()) { hasilScan(k.trim()); } } }),
+        el('input', { type: 'file', id: 'scanFoto', accept: 'image/*', capture: 'environment', hidden: 'hidden' })
+      ]),
+      el('div', { id: 'scanDebug', class: 'scan-debug', text: 'Menunggu kamera…' }),
       el('p', { class: 'scan-tips', text: 'Arahkan barcode mendatar ke dalam bingkai, jarak 10 sampai 20 cm. Setelah menyimpan hitungan, kamera siap untuk barang berikutnya.' })
     ]);
     document.body.appendChild(lapis);
     document.body.style.overflow = 'hidden';
+    $('scanFoto').onchange = function () { var f = this.files && this.files[0]; this.value = ''; if (f) { bacaFoto(f); } };
+    scanSt.dbg = setInterval(function () { var d = $('scanDebug'); if (!d || !scanSt) { return; } d.textContent = 'Kamera ' + (scanSt.resol || '-') + ' · pembaca ' + (window.BarcodeDetector ? 'bawaan + internal' : 'internal') + ' · garis terlihat ' + (scanSt.lihat || 0) + ' · frame ' + (scanSt.bingkai || 0); }, 700);
     navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }).then(function (st) {
       if (!scanSt || scanSt.tutup) { st.getTracks().forEach(function (t) { t.stop(); }); return; }
       scanSt.stream = st; video.srcObject = st;
@@ -2770,7 +2795,7 @@
       if (!scanSt || scanSt.tutup) { return; }
       var modalBuka = $('formModal') && $('formModal').classList.contains('buka');
       if (modalBuka || Date.now() < scanSt.jeda || video.readyState < 2 || !video.videoWidth) { setTimeout(langkah, 200); return; }
-      var w = Math.min(960, video.videoWidth), h = Math.round(video.videoHeight * w / video.videoWidth);
+      var w = Math.min(1280, video.videoWidth), h = Math.round(video.videoHeight * w / video.videoWidth);
       kanvas.width = w; kanvas.height = h;
       var tahap = Promise.resolve(null);
       if (window.BarcodeDetector && bd !== false) {
@@ -2783,9 +2808,9 @@
         var d = cx.getImageData(0, 0, w, h).data, g = new Uint8Array(w * h), i;
         for (i = 0; i < w * h; i++) { g[i] = (d[i * 4] * 77 + d[i * 4 + 1] * 150 + d[i * 4 + 2] * 29) >> 8; }
         scanSt.bingkai = (scanSt.bingkai || 0) + 1;
-        var inf = {}, hs = dekodeCitra(g, w, h, inf);
-        if (!hs && scanSt.bingkai % 3 === 0) { var inf2 = {}; hs = dekodeCitra(putar90(g, w, h), h, w, inf2); inf.garis += inf2.garis; }
-        scanSt.lihat = inf.garis || 0;
+        var inf = { cepat: scanSt.bingkai % 2 === 1 }, hs = dekodeCitra(g, w, h, inf);
+        if (!hs && scanSt.bingkai % 4 === 0) { var inf2 = { cepat: true }; hs = dekodeCitra(putar90(g, w, h), h, w, inf2); inf.garis += inf2.garis; }
+        scanSt.lihat = inf.garis || 0; scanSt.resol = video.videoWidth + 'x' + video.videoHeight;
         return hs;
       }).then(function (t) { if (t) { tangkap(t); } else if (scanSt) { if (scanSt.blok && Date.now() > scanSt.blokSampai) { scanSt.blok = ''; } scanSt.sepi = (scanSt.sepi || 0) + 1; if (scanSt.sepi % 12 === 0 && !(Date.now() < scanSt.jeda)) { scanStatus(scanSt.lihat > 0 ? 'Barcode terlihat tapi belum terbaca. Tahan HP stabil, coba jarak lain, hindari pantulan cahaya.' : 'Barcode belum terlihat. Dekatkan atau sejajarkan barcode di dalam bingkai.', ''); } } }).catch(function () { /* abaikan */ }).then(function () { if (scanSt && !scanSt.tutup) { setTimeout(langkah, 90); } });
     }
