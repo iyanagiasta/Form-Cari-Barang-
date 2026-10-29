@@ -2173,9 +2173,11 @@
 
   function opRender() {
     var sig = opTampil.nama + '|' + (opTampil.rak || '') + '|' + (opTampil.saring || '');
-    var y = window.scrollY;
+    var y = window.scrollY, box = $('hasil'), tinggi = box ? box.offsetHeight : 0, sama = sig === opSig;
+    if (sama && box && tinggi) { box.style.minHeight = tinggi + 'px'; }   // cegah halaman memendek sesaat sehingga posisi gulir melompat ke atas
     opRenderIsi();
-    if (sig === opSig) { window.scrollTo(0, y); }
+    if (sama) { window.scrollTo(0, y); }
+    if (box && box.style.minHeight) { setTimeout(function () { box.style.minHeight = ''; if (sama && Math.abs(window.scrollY - y) > 2) { window.scrollTo(0, y); } }, 120); }
     opSig = sig;
   }
 
@@ -2484,8 +2486,9 @@
     if (nBuf > 0) { box.appendChild(el('label', { class: 'meta', style: 'display:flex;gap:8px;align-items:center;margin:8px 0;font-weight:700' }, [bufCb, 'Hanya barang buffer paket (' + nBuf + ')'])); }
     var info = el('p', { class: 'meta', role: 'status', 'aria-live': 'polite' }), isi = el('div');
     box.appendChild(info); box.appendChild(isi);
-    var batas = 150;
+    var batas = st.batas || 150;   // tersimpan di opTampil agar tidak kembali ke 150 saat layar disegarkan otomatis
     function gambar() {
+      st.batas = batas;
       st.q = q.value; st.rakF = sel.value; st.sembunyiNol = nol.checked; st.bufOnly = bufCb.checked;
       var tok = String(q.value || '').split(/\s+/).map(norm).filter(Boolean);
       var daftar = semuaBelum.filter(function (it) {
@@ -3582,8 +3585,12 @@
     var a = document.activeElement, fokusCari = !!(a && a.tagName === 'INPUT' && a.type === 'search' && $('hasil').contains(a));
     if (a && a.tagName === 'INPUT' && !fokusCari) { return; }   // sedang mengisi kolom lain
     polingJalan = true;
+    var sebelum = ''; try { sebelum = JSON.stringify(opData); } catch (e) { sebelum = ''; }
     opMuat(opData.sesi.id, true).then(function () {
       if (terakhir.jenis !== 'opname' || $('formModal').classList.contains('buka') || antreanSaya().length) { return; }
+      var u = $('opUmur'); if (u) { u.textContent = umurTeks(); }
+      var sesudah = ''; try { sesudah = JSON.stringify(opData); } catch (e) { sesudah = ' '; }
+      if (sebelum && sebelum === sesudah) { return; }   // tidak ada perubahan dari rekan: jangan gambar ulang (layar tidak bergerak)
       var b = document.activeElement, nilai = fokusCari && b && b.type === 'search' ? b.value : null;
       if (nilai !== null) { opTampil.q = nilai; opTampil.fokusCari = true; }
       opRender();
