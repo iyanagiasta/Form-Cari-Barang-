@@ -301,6 +301,7 @@
   .op-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
   .op-menu button { min-height: 48px; padding: 8px; border-radius: 10px; border: 1.5px solid var(--laut); background: var(--aksen-lembut); color: var(--laut-tua); font-weight: 700; }
   .op-menu button:disabled { opacity: .5; cursor: not-allowed; }
+  .tag-buf { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: #fff3cd; color: #7a5200; border: 1px solid #e0b83c; font-size: .7rem; font-weight: 800; vertical-align: middle; }
   .op-menu button.op-hapus { border-color: #b3261e; color: #b3261e; background: transparent; }
   .op-sub-judul { margin: 16px 0 6px; font-size: .9rem; color: var(--laut-tua); }
   .op-baris .op-sub { display: block; font-weight: 400; color: var(--redup); font-size: .8rem; }
@@ -2186,6 +2187,7 @@
     else if (n === 'rak') { opGambarRak(opTampil.rak); }
     else if (n === 'ulang') { opGambarDaftarBarang('Perlu hitung ulang', function (it, r) { return butuhUlang(it, r); }, 'Tidak ada barang yang perlu dihitung ulang.'); }
     else if (n === 'temuan') { opGambarTemuan(); }
+    else if (n === 'belum') { opGambarBelum(); }
     else if (n === 'tinjau') { opGambarTinjau(); }
     else if (n === 'tugas') { opGambarTugas(); }
   }
@@ -2257,7 +2259,7 @@
     var r = peta[kunciKode(it.kode)], s = statusOp(it, r);
     var letak = [it.rak ? 'Rak ' + bersihAwalan(it.rak, 'rak') : '', it.tingkat ? 'Tingkat ' + bersihAwalan(it.tingkat, 'tingkat') : '', it.kolom ? 'Kolom ' + bersihAwalan(it.kolom, 'kolom') : '', 'kode ' + it.kode].filter(Boolean).join(' · ');
     var anak = [el('button', { type: 'button', class: 'op-buka', onclick: function () { bukaHitung(it, konteks, asal); } }, [
-      el('span', { class: 'nama' }, [it.nama, el('small', { class: 'op-sub', text: letak })]),
+      el('span', { class: 'nama' }, [it.nama, it.buf > 0 ? el('span', { class: 'tag-buf', title: 'Wajib ada untuk buffer paket: ' + (it.bufp || ''), text: 'BUFFER ' + fmtAngka(it.buf) }) : null, el('small', { class: 'op-sub', text: letak })]),
       el('span', { class: 'ket', text: s.teks })
     ])];
     // ✓ satu ketukan: barang yang belum dihitung dan jumlahnya sama dengan stok sistem
@@ -2366,7 +2368,10 @@
 
     var ulang = lingkup().filter(function (it) { return butuhUlang(it, peta[kunciKode(it.kode)]); }).length;
     var temuan = Object.keys(peta).filter(function (k) { return peta[k].status === 'Temuan'; }).length;
+    var bufBelum = lingkup().filter(function (it) { var r = peta[kunciKode(it.kode)]; return it.kode && it.buf > 0 && (!r || r.status === 'Temuan'); }).length;
     box.appendChild(el('div', { class: 'op-menu' }, [
+      el('button', { type: 'button', text: 'Belum dihitung (' + (progres(peta, lingkup()).total - progres(peta, lingkup()).sudah) + ')', onclick: function () { opTampil = { nama: 'belum', q: '', rakF: '', sembunyiNol: false }; opRender(); } }),
+      bufBelum ? el('button', { type: 'button', text: 'Buffer paket belum dihitung (' + bufBelum + ')', onclick: function () { opTampil = { nama: 'belum', q: '', rakF: '', sembunyiNol: false, bufOnly: true }; opRender(); } }) : null,
       el('button', { type: 'button', text: 'Perlu hitung ulang (' + ulang + ')', onclick: function () { opTampil = { nama: 'ulang' }; opRender(); } }),
       el('button', { type: 'button', text: 'Barang temuan (' + temuan + ')', onclick: function () { opTampil = { nama: 'temuan' }; opRender(); } }),
       el('button', { type: 'button', text: '+ Tambah barang temuan', onclick: formTemuan, disabled: berjalan ? null : 'disabled' }),
@@ -2445,6 +2450,74 @@
     var blok = el('section', { class: 'tingkat' });
     opKonteks.forEach(function (it) { blok.appendChild(barisOp(it, peta, opKonteks)); });
     box.appendChild(blok);
+  }
+
+  /* ---- filter: barang yang belum dihitung (seluruh gudang, bisa disaring rak dan kata kunci) ---- */
+  function opGambarBelum() {
+    var s = opData.sesi, st = opTampil;
+    var box = opAwal('Belum dihitung', { teks: s.nama, aksi: function () { opTampil = { nama: 'sesi', q: '' }; opRender(); } });
+    var peta = hasilPeta();
+    var semuaBelum = lingkup().filter(function (it) { var r = peta[kunciKode(it.kode)]; return !r || r.status === 'Temuan'; });
+    box.appendChild(opBarSinkron());
+    box.appendChild(barProgres(progres(peta, lingkup()), 'Seluruh gudang: '));
+    if (!semuaBelum.length) { box.appendChild(el('p', { class: 'info', text: 'Semua barang sudah dihitung.' })); return; }
+    var rakMap = {}, rakUrut = [];
+    semuaBelum.forEach(function (it) {
+      var ada = !!String(it.rak || '').trim(), k = ada ? kunciRakOp(it.rak) : '__tanpa_rak__';
+      if (!rakMap[k]) { rakMap[k] = { nama: ada ? String(it.rak).trim() : 'Tanpa rak', n: 0 }; rakUrut.push(k); }
+      rakMap[k].n++;
+    });
+    rakUrut.sort(function (a, b) { return rakMap[a].nama.localeCompare(rakMap[b].nama, 'id', { numeric: true }); });
+    var sel = el('select', { 'aria-label': 'Saring berdasarkan rak' }, [el('option', { value: '', text: 'Semua rak (' + semuaBelum.length + ')' })].concat(rakUrut.map(function (k) { return el('option', { value: k, text: rakMap[k].nama + ' (' + rakMap[k].n + ')' }); })));
+    sel.value = st.rakF || '';
+    if (sel.value !== (st.rakF || '')) { sel.value = ''; st.rakF = ''; }
+    var q = el('input', { type: 'search', placeholder: 'Cari di barang yang belum dihitung…', 'aria-label': 'Cari di barang yang belum dihitung', autocomplete: 'off', autocapitalize: 'none' });
+    q.value = st.q || '';
+    var nol = el('input', { type: 'checkbox', id: 'belumNol' });
+    nol.checked = !!st.sembunyiNol;
+    box.appendChild(el('div', { class: 'op-cari' }, [el('div', { class: 'kotak-input' }, [q])]));
+    box.appendChild(el('div', { class: 'field', style: 'margin-top:8px' }, [sel]));
+    box.appendChild(el('label', { class: 'meta', style: 'display:flex;gap:8px;align-items:center;margin:8px 0' }, [nol, 'Sembunyikan barang yang stok sistemnya 0']));
+    var nBuf = semuaBelum.filter(function (it) { return it.buf > 0; }).length;
+    var bufCb = el('input', { type: 'checkbox', id: 'belumBuf' });
+    bufCb.checked = !!st.bufOnly && nBuf > 0;
+    if (nBuf > 0) { box.appendChild(el('label', { class: 'meta', style: 'display:flex;gap:8px;align-items:center;margin:8px 0;font-weight:700' }, [bufCb, 'Hanya barang buffer paket (' + nBuf + ')'])); }
+    var info = el('p', { class: 'meta', role: 'status', 'aria-live': 'polite' }), isi = el('div');
+    box.appendChild(info); box.appendChild(isi);
+    var batas = 150;
+    function gambar() {
+      st.q = q.value; st.rakF = sel.value; st.sembunyiNol = nol.checked; st.bufOnly = bufCb.checked;
+      var tok = String(q.value || '').split(/\s+/).map(norm).filter(Boolean);
+      var daftar = semuaBelum.filter(function (it) {
+        if (st.rakF) { var ada = !!String(it.rak || '').trim(), k = ada ? kunciRakOp(it.rak) : '__tanpa_rak__'; if (k !== st.rakF) { return false; } }
+        if (st.sembunyiNol && !(stokSistem(it, null) > 0)) { return false; }
+        if (st.bufOnly && !(it.buf > 0)) { return false; }
+        if (!tok.length) { return true; }
+        var hay = norm(it.nama + ' ' + it.kode + ' ' + (it.rak || ''));
+        return tok.every(function (t) { return hay.indexOf(t) >= 0; });
+      }).sort(urutLetak);
+      opKonteks = daftar;
+      isi.innerHTML = '';
+      info.textContent = daftar.length + ' dari ' + semuaBelum.length + ' barang belum dihitung' + (daftar.length > batas ? ' (menampilkan ' + batas + ' pertama, saring lebih sempit atau tampilkan lebih banyak)' : '') + '.';
+      if (!daftar.length) { isi.appendChild(el('p', { class: 'meta', text: 'Tidak ada barang yang cocok dengan saringan ini.' })); return; }
+      var kel = {}, urut = [];
+      daftar.slice(0, batas).forEach(function (it) {
+        var ada = !!String(it.rak || '').trim(), k = ada ? kunciRakOp(it.rak) : '__tanpa_rak__';
+        if (!kel[k]) { kel[k] = []; urut.push(k); }
+        kel[k].push(it);
+      });
+      urut.forEach(function (k) {
+        var blok = el('section', { class: 'tingkat' }, [el('h4', { text: rakMap[k] ? rakMap[k].nama : k })]);
+        kel[k].forEach(function (it) { blok.appendChild(barisOp(it, peta, daftar, 'rak')); });
+        isi.appendChild(blok);
+      });
+      if (daftar.length > batas) { isi.appendChild(el('button', { type: 'button', class: 'btn-rak', text: 'Tampilkan 150 lagi', onclick: function () { batas += 150; gambar(); } })); }
+    }
+    q.addEventListener('input', function () { batas = 150; gambar(); });
+    sel.addEventListener('change', function () { batas = 150; gambar(); });
+    nol.addEventListener('change', function () { batas = 150; gambar(); });
+    bufCb.addEventListener('change', function () { batas = 150; gambar(); });
+    gambar();
   }
 
   function opGambarTemuan() {
@@ -2950,6 +3023,7 @@
     var isi = el('div', { class: 'form-isi' });
     isi.appendChild(el('p', { class: 'meta', style: 'font-weight:700;font-size:1.05rem;color:var(--laut-tua)', text: it.nama }));
     isi.appendChild(el('p', { class: 'meta', text: lokasiTeks(it.rak, it.tingkat, it.kolom) + ' · kode ' + it.kode }));
+    if (it.buf > 0) { isi.appendChild(el('div', { class: 'petunjuk sama', text: 'Barang buffer paket: sebaiknya selalu ada minimal ' + fmtAngka(it.buf) + (it.satuan ? ' ' + it.satuan : '') + (it.bufp ? ' (' + it.bufp + ')' : '') + '.' })); }
     isi.appendChild(el('p', { class: 'pratinjau' }, ['Stok sistem: ', el('b', { text: it.stok ? it.stok + (it.satuan ? ' ' + it.satuan : '') : 'belum diisi (dianggap 0)' })]));
     if (r && r.status !== 'Temuan') {
       var tek = 'Sudah dihitung oleh ' + (r.oleh || '-') + ': ' + (r.status === 'Tidak ditemukan' ? 'tidak ditemukan' : fmtAngka(r.jumlah));
