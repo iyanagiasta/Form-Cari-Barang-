@@ -307,6 +307,9 @@
   .op-baris .op-sub { display: block; font-weight: 400; color: var(--redup); font-size: .8rem; }
   .op-baris.sesuai .ket { color: #17653a; font-weight: 700; }
   .op-baris.selisih .ket { color: var(--galat); font-weight: 700; }
+  .op-baris.tak-tahu { border-left: 4px solid #d9a400; background: rgba(217,164,0,.12); }
+  .op-baris.tak-tahu .ket { color: #8a6a00; font-weight: 700; }
+  .op-cepat .tombol-tak, .op-menu .tombol-tak { border-color: #d9a400; }
   .op-baris.ulang .ket { color: var(--peringatan); font-weight: 700; }
   .op-jumlah { display: flex; gap: 8px; align-items: stretch; margin-top: 10px; }
   .op-jumlah input { flex: 1; min-width: 0; text-align: center; font: inherit; font-size: 1.6rem; font-weight: 700; min-height: 58px; border: 1.5px solid var(--laut); border-radius: 10px; }
@@ -1971,10 +1974,11 @@
   function tanpaRakJumlah() { return semua.filter(function (x) { return x.kode && !String(x.rak || '').trim(); }).length; }
   function labelRak(r) { return r.tanpa ? 'Tanpa rak' : 'Rak ' + bersihAwalan(r.nama, 'rak'); }
   function efektif(r) { return r.ulang !== null && r.ulang !== undefined ? r.ulang : r.jumlah; }
+  function sudahHitung(r) { return !!(r && r.status !== 'Temuan' && r.status !== 'Belum diketahui'); }   // 'Belum diketahui' belum dianggap dihitung
 
   // Baris hasil dari satu hitungan yang masih antre (dipakai untuk tampilan dan untuk menggabung setelah terkirim)
   function barisDariAntrean(a, r) {
-    var j = a.item.status === 'tidak_ada' ? 0 : a.item.jumlah;
+    var j = (a.item.status === 'tidak_ada' || a.item.status === 'belum_tahu') ? 0 : a.item.jumlah;
     if (a.item.ulang && r) {
       var c = Object.assign({}, r);
       c.ulang = j; c.olehUlang = a.oleh || namaAdmin; c.menunggu = true;
@@ -1982,7 +1986,7 @@
     }
     return {
       kode: a.item.kode, nama: a.item.nama, rak: a.item.rak, stok: r ? r.stok : null, jumlah: j,
-      status: a.item.status === 'tidak_ada' ? 'Tidak ditemukan' : a.item.status === 'temuan' ? 'Temuan' : 'Dihitung',
+      status: a.item.status === 'tidak_ada' ? 'Tidak ditemukan' : a.item.status === 'belum_tahu' ? 'Belum diketahui' : a.item.status === 'temuan' ? 'Temuan' : 'Dihitung',
       catatan: a.item.catatan || '', oleh: a.oleh || namaAdmin, ulang: null, olehUlang: '', menunggu: true
     };
   }
@@ -2010,7 +2014,8 @@
   function statusOp(it, r) {
     if (!r || r.status === 'Temuan') { return { kelas: 'belum', teks: 'Belum dihitung · stok ' + (it.stok || '0') }; }
     var tunggu = r.menunggu ? ' ⏳' : '';
-    if (r.status === 'Tidak ditemukan') { return { kelas: 'selisih', teks: 'Tidak ditemukan' + tunggu }; }
+    if (r.status === 'Belum diketahui') { return { kelas: 'tak-tahu', teks: 'Belum diketahui' + tunggu + (r.catatan ? ' · ' + r.catatan : '') }; }
+    if (r.status === 'Tidak ditemukan') { return { kelas: 'selisih', teks: 'Stok habis (0) · sistem ' + (it.stok || '0') + tunggu }; }
     var st = stokSistem(it, r), j = efektif(r), sel = bulat3(j - st);
     if (sel === 0) { return { kelas: 'sesuai', teks: '✓ ' + fmtAngka(j) + tunggu }; }
     var ul = (r.ulang === null || r.ulang === undefined) && perluUlang(st, r.jumlah);
@@ -2042,7 +2047,7 @@
   }
   function progres(peta, daftar) {
     var sudah = 0;
-    daftar.forEach(function (x) { var r = peta[kunciKode(x.kode)]; if (r && r.status !== 'Temuan') { sudah++; } });
+    daftar.forEach(function (x) { var r = peta[kunciKode(x.kode)]; if (sudahHitung(r)) { sudah++; } });
     return { sudah: sudah, total: daftar.length };
   }
   function barProgres(p, awalan) {
@@ -2370,10 +2375,12 @@
 
     var ulang = lingkup().filter(function (it) { return butuhUlang(it, peta[kunciKode(it.kode)]); }).length;
     var temuan = Object.keys(peta).filter(function (k) { return peta[k].status === 'Temuan'; }).length;
-    var bufBelum = lingkup().filter(function (it) { var r = peta[kunciKode(it.kode)]; return it.kode && it.buf > 0 && (!r || r.status === 'Temuan'); }).length;
+    var tak = Object.keys(peta).filter(function (k) { return peta[k].status === 'Belum diketahui'; }).length;
+    var bufBelum = lingkup().filter(function (it) { var r = peta[kunciKode(it.kode)]; return it.kode && it.buf > 0 && !sudahHitung(r); }).length;
     box.appendChild(el('div', { class: 'op-menu' }, [
       el('button', { type: 'button', text: 'Belum dihitung (' + (progres(peta, lingkup()).total - progres(peta, lingkup()).sudah) + ')', onclick: function () { opTampil = { nama: 'belum', q: '', rakF: '', sembunyiNol: false }; opRender(); } }),
       bufBelum ? el('button', { type: 'button', text: 'Buffer paket belum dihitung (' + bufBelum + ')', onclick: function () { opTampil = { nama: 'belum', q: '', rakF: '', sembunyiNol: false, bufOnly: true }; opRender(); } }) : null,
+      tak ? el('button', { type: 'button', class: 'tombol-tak', text: 'Belum diketahui (' + tak + ')', onclick: function () { opTampil = { nama: 'tinjau', saring: 'tak' }; opRender(); } }) : null,
       el('button', { type: 'button', text: 'Perlu hitung ulang (' + ulang + ')', onclick: function () { opTampil = { nama: 'ulang' }; opRender(); } }),
       el('button', { type: 'button', text: 'Barang temuan (' + temuan + ')', onclick: function () { opTampil = { nama: 'temuan' }; opRender(); } }),
       el('button', { type: 'button', text: '+ Tambah barang temuan', onclick: formTemuan, disabled: berjalan ? null : 'disabled' }),
@@ -2459,7 +2466,7 @@
     var s = opData.sesi, st = opTampil;
     var box = opAwal('Belum dihitung', { teks: s.nama, aksi: function () { opTampil = { nama: 'sesi', q: '' }; opRender(); } });
     var peta = hasilPeta();
-    var semuaBelum = lingkup().filter(function (it) { var r = peta[kunciKode(it.kode)]; return !r || r.status === 'Temuan'; });
+    var semuaBelum = lingkup().filter(function (it) { var r = peta[kunciKode(it.kode)]; return !sudahHitung(r); });
     box.appendChild(opBarSinkron());
     box.appendChild(barProgres(progres(peta, lingkup()), 'Seluruh gudang: '));
     if (!semuaBelum.length) { box.appendChild(el('p', { class: 'info', text: 'Semua barang sudah dihitung.' })); return; }
@@ -2545,38 +2552,40 @@
   function ringkasHasil() {
     var peta = hasilPeta(), ling = lingkup(), info = {};
     semua.forEach(function (x) { if (x.kode) { info[kunciKode(x.kode)] = x; } });
-    var sel = [], ulang = [], sesuai = [], belum = [];
+    var sel = [], ulang = [], sesuai = [], belum = [], tak = [];
     ling.forEach(function (it) {
       var r = peta[kunciKode(it.kode)];
+      if (r && r.status === 'Belum diketahui') { tak.push({ it: it, r: r, tak: true }); return; }
       if (!r || r.status === 'Temuan') { belum.push(it); return; }
       var st = stokSistem(it, r), j = r.status === 'Tidak ditemukan' ? 0 : efektif(r), d = bulat3(j - st);
       var baris = { it: it, r: r, st: st, j: j, d: d };
       if (d === 0) { sesuai.push(baris); } else { sel.push(baris); if (butuhUlang(it, r)) { ulang.push(baris); } }
     });
-    return { sel: sel, ulang: ulang, sesuai: sesuai, belum: belum, peta: peta };
+    return { sel: sel, ulang: ulang, sesuai: sesuai, belum: belum, tak: tak, peta: peta };
   }
 
   function opGambarTinjau() {
     var box = opAwal('Tinjau selisih', { teks: opData.sesi.nama, aksi: function () { opTampil = { nama: 'sesi', q: '' }; opRender(); } });
     var rg = ringkasHasil();
-    box.appendChild(barProgres({ sudah: rg.sel.length + rg.sesuai.length, total: rg.sel.length + rg.sesuai.length + rg.belum.length }, 'Seluruh gudang: '));
+    box.appendChild(barProgres({ sudah: rg.sel.length + rg.sesuai.length, total: rg.sel.length + rg.sesuai.length + rg.belum.length + rg.tak.length }, 'Seluruh gudang: '));
     var saring = opTampil.saring || 'selisih';
-    var pilihan = [['selisih', 'Selisih (' + rg.sel.length + ')'], ['ulang', 'Perlu hitung ulang (' + rg.ulang.length + ')'], ['belum', 'Belum dihitung (' + rg.belum.length + ')'], ['sesuai', 'Sesuai (' + rg.sesuai.length + ')']];
+    var pilihan = [['selisih', 'Selisih (' + rg.sel.length + ')'], ['ulang', 'Perlu hitung ulang (' + rg.ulang.length + ')'], ['belum', 'Belum dihitung (' + rg.belum.length + ')'], ['tak', 'Belum diketahui (' + rg.tak.length + ')'], ['sesuai', 'Sesuai (' + rg.sesuai.length + ')']];
     box.appendChild(el('div', { class: 'chip-filter' }, pilihan.map(function (p) {
       return el('button', { type: 'button', class: saring === p[0] ? 'aktif' : '', text: p[1], onclick: function () { opTampil.saring = p[0]; opRender(); } });
     })));
     var blok = el('section', { class: 'tingkat' });
-    var daftar = saring === 'belum' ? rg.belum.slice().sort(urutLetak).map(function (it) { return { it: it, belum: true }; })
+    var daftar = saring === 'tak' ? rg.tak.slice().sort(function (a, b) { return urutLetak(a.it, b.it); })
+      : saring === 'belum' ? rg.belum.slice().sort(urutLetak).map(function (it) { return { it: it, belum: true }; })
       : (saring === 'ulang' ? rg.ulang : saring === 'sesuai' ? rg.sesuai : rg.sel).slice().sort(function (a, b) { return urutLetak(a.it, b.it); });
     if (!daftar.length) { box.appendChild(el('p', { class: 'meta', text: 'Tidak ada barang di daftar ini.' })); return; }
     opKonteks = daftar.map(function (x) { return x.it; });
     daftar.forEach(function (x) {
       var it = x.it;
       var sub = ['Rak ' + bersihAwalan(it.rak, 'rak'), it.tingkat ? 'Tingkat ' + bersihAwalan(it.tingkat, 'tingkat') : '', 'kode ' + it.kode].filter(Boolean).join(' · ');
-      var ket = x.belum ? 'Belum dihitung'
-        : 'Sistem ' + fmtAngka(x.st) + ' → ' + (x.r.status === 'Tidak ditemukan' ? 'tidak ditemukan' : fmtAngka(x.j)) + ' (' + (x.d > 0 ? '+' : '') + fmtAngka(x.d) + ')';
-      var oleh = x.belum ? '' : ' · oleh ' + (x.r.oleh || '-') + (x.r.ulang !== null && x.r.ulang !== undefined ? ', ulang ' + fmtAngka(x.r.ulang) + ' oleh ' + (x.r.olehUlang || '-') : '') + (x.r.catatan ? ' · ' + x.r.catatan : '');
-      blok.appendChild(el('button', { type: 'button', class: 'baris op-baris ' + (x.belum ? 'belum' : x.d === 0 ? 'sesuai' : butuhUlang(it, x.r) ? 'ulang' : 'selisih'), onclick: function () { bukaHitung(it, opKonteks); } }, [
+      var ket = x.tak ? 'Belum diketahui · stok ' + (it.stok || '0') : x.belum ? 'Belum dihitung'
+        : 'Sistem ' + fmtAngka(x.st) + ' → ' + (x.r.status === 'Tidak ditemukan' ? 'stok habis' : fmtAngka(x.j)) + ' (' + (x.d > 0 ? '+' : '') + fmtAngka(x.d) + ')';
+      var oleh = x.belum ? '' : x.tak ? ' · oleh ' + (x.r.oleh || '-') + (x.r.catatan ? ' · ' + x.r.catatan : '') : ' · oleh ' + (x.r.oleh || '-') + (x.r.ulang !== null && x.r.ulang !== undefined ? ', ulang ' + fmtAngka(x.r.ulang) + ' oleh ' + (x.r.olehUlang || '-') : '') + (x.r.catatan ? ' · ' + x.r.catatan : '');
+      blok.appendChild(el('button', { type: 'button', class: 'baris op-baris ' + (x.tak ? 'tak-tahu' : x.belum ? 'belum' : x.d === 0 ? 'sesuai' : butuhUlang(it, x.r) ? 'ulang' : 'selisih'), onclick: function () { bukaHitung(it, opKonteks); } }, [
         el('span', { class: 'nama' }, [it.nama, el('small', { class: 'op-sub', text: sub + oleh })]),
         el('span', { class: 'ket', text: ket })
       ]));
@@ -2884,8 +2893,8 @@
     if (!it) { bunyiScan(false); scanStatus('Kode "' + teks + '" tidak ada di data barang.', 'salah'); scanSt.jeda = Date.now() + 2500; return; }
     var r = hasilPeta()[kunciKode(it.kode)];
     bunyiScan(true);
-    if (r && r.status !== 'Temuan') {
-      var tek = it.nama + ' sudah dihitung oleh ' + (r.oleh || '-') + ': ' + (r.status === 'Tidak ditemukan' ? 'tidak ditemukan' : fmtAngka(efektif(r))) + '.\n\nHitung lagi dan timpa hasil sebelumnya?';
+    if (sudahHitung(r)) {
+      var tek = it.nama + ' sudah dihitung oleh ' + (r.oleh || '-') + ': ' + (r.status === 'Tidak ditemukan' ? 'stok habis' : fmtAngka(efektif(r))) + '.\n\nHitung lagi dan timpa hasil sebelumnya?';
       if (!window.confirm(tek)) { scanStatus('Dilewati: ' + it.nama, ''); scanSt.jeda = Date.now() + 2000; return; }
     }
     scanStatus('Terbaca: ' + it.nama, 'ok');
@@ -3028,8 +3037,8 @@
     isi.appendChild(el('p', { class: 'meta', text: lokasiTeks(it.rak, it.tingkat, it.kolom) + ' · kode ' + it.kode }));
     if (it.buf > 0) { isi.appendChild(el('div', { class: 'petunjuk sama', text: 'Barang buffer paket: sebaiknya selalu ada minimal ' + fmtAngka(it.buf) + (it.satuan ? ' ' + it.satuan : '') + (it.bufp ? ' (' + it.bufp + ')' : '') + '.' })); }
     isi.appendChild(el('p', { class: 'pratinjau' }, ['Stok sistem: ', el('b', { text: it.stok ? it.stok + (it.satuan ? ' ' + it.satuan : '') : 'belum diisi (dianggap 0)' })]));
-    if (r && r.status !== 'Temuan') {
-      var tek = 'Sudah dihitung oleh ' + (r.oleh || '-') + ': ' + (r.status === 'Tidak ditemukan' ? 'tidak ditemukan' : fmtAngka(r.jumlah));
+    if (sudahHitung(r)) {
+      var tek = 'Sudah dihitung oleh ' + (r.oleh || '-') + ': ' + (r.status === 'Tidak ditemukan' ? 'stok habis' : fmtAngka(r.jumlah));
       if (r.ulang !== null && r.ulang !== undefined) { tek += ' · hitung ulang oleh ' + (r.olehUlang || '-') + ': ' + fmtAngka(r.ulang); }
       isi.appendChild(el('p', { class: 'meta', text: tek }));
     }
@@ -3060,8 +3069,10 @@
     var galat = el('div', { class: 'form-galat', role: 'alert' });
 
     function simpan(status, berikut) {
-      var j = status === 'tidak_ada' ? 0 : angka(inp.value);
-      if (status !== 'tidak_ada') {
+      var nol = status === 'tidak_ada' || status === 'belum_tahu';
+      var j = nol ? 0 : angka(inp.value);
+      if (status === 'belum_tahu' && !cat.value.trim()) { galat.textContent = 'Isi catatan dulu: sudah dicari di mana saja / kata siapa.'; cat.focus(); return; }
+      if (!nol) {
         if (!inp.value.trim()) { galat.textContent = 'Isi jumlahnya dulu.'; inp.focus(); return; }
         if (isNaN(j) || j < 0) { galat.textContent = 'Jumlah harus berupa angka 0 atau lebih. Pakai koma untuk desimal, mis. 2,5.'; inp.focus(); return; }
         if (j > 1000000000) { galat.textContent = 'Jumlah terlalu besar.'; inp.focus(); return; }
@@ -3075,7 +3086,7 @@
         opTampil.q = '';
         opTampil.fokusCari = true;
       }
-      opTampil.catatan = { teks: 'Tersimpan: ' + it.nama + ' = ' + (status === 'tidak_ada' ? 'tidak ditemukan' : fmtAngka(j)), kode: barangBaru && !modeUlang ? it.kode : null, sampai: Date.now() + 8000 };
+      opTampil.catatan = { teks: 'Tersimpan: ' + it.nama + ' = ' + (status === 'tidak_ada' ? 'stok habis' : status === 'belum_tahu' ? 'belum diketahui' : fmtAngka(j)), kode: barangBaru && !modeUlang ? it.kode : null, sampai: Date.now() + 8000 };
       opRender();
       if (nx) { bukaHitung(nx, konteks, asal); }
       else if (asal === 'rak') {   // dari daftar rak: gulir ke barang berikutnya yang belum dihitung
@@ -3092,7 +3103,8 @@
     if (it.stok && !isNaN(angka(it.stok)) && !modeUlang) {
       cepat.push(el('button', { type: 'button', text: 'Sesuai (' + it.stok + ')', onclick: function () { inp.value = fmtAngka(angka(it.stok)); simpan('dihitung', false); } }));
     }
-    cepat.push(el('button', { type: 'button', text: 'Tidak ditemukan', onclick: function () { simpan('tidak_ada', false); } }));
+    cepat.push(el('button', { type: 'button', text: 'Stok habis (0)', onclick: function () { simpan('tidak_ada', false); } }));
+    cepat.push(el('button', { type: 'button', class: 'tombol-tak', text: 'Belum diketahui', title: 'Sudah dicari tetapi belum ketemu. Stok tidak diubah; admin yang memutuskan.', onclick: function () { simpan('belum_tahu', false); } }));
     isi.appendChild(el('div', { class: 'op-cepat' }, cepat));
     if (modeAdmin() && it.kode) {   // admin: lengkapi data barang langsung dari daftar hitung (misal barang yang belum punya rak)
       var lengkapi = [
@@ -3165,6 +3177,8 @@
   function opTutup() {
     var n = antreanSaya().filter(function (a) { return a.sesi === opData.sesi.id; }).length;
     if (n && !window.confirm(n + ' hitungan di HP ini belum terkirim. Tutup sesi tetap dilanjutkan?')) { return; }
+    var nTak = Object.keys(hasilPeta()).filter(function (k) { return hasilPeta()[k].status === 'Belum diketahui'; }).length;
+    if (nTak && !window.confirm(nTak + ' barang masih berstatus "Belum diketahui".\n\nSebaiknya putuskan dulu: hitung ulang kalau sudah ketemu, atau tandai "Stok habis" kalau memang tidak ada. Buka menu "Belum diketahui" untuk melihat daftarnya.\n\nTutup sesi tetap dilanjutkan? Barang itu tetap tercatat "Belum diketahui" di laporan dan stoknya TIDAK diubah.')) { return; }
     if (!window.confirm('Tutup sesi "' + opData.sesi.nama + '"? Setelah ditutup, hitungan baru tidak diterima. Pastikan semua petugas sudah selesai dan sudah terkirim.')) { return; }
     postOp('sesi_tutup', { sesi: opData.sesi.id }).then(function () { return opMuat(opData.sesi.id); }).then(function () {
       opTampil = { nama: 'sesi', q: '' };
@@ -3214,17 +3228,18 @@
   function laporanOpname() {
     var s = opData.sesi, peta = hasilPeta(true), info = {};
     semua.forEach(function (x) { if (x.kode) { info[kunciKode(x.kode)] = x; } });
-    var hasil = [], temuan = [], belum = [], nSel = 0, nUlang = 0, nSesuai = 0;
+    var hasil = [], temuan = [], belum = [], tak = [], nSel = 0, nUlang = 0, nSesuai = 0;
     Object.keys(peta).forEach(function (k) {
       var r = peta[k], it = info[k] || {};
       if (r.status === 'Temuan') { temuan.push([r.kode, r.nama, r.rak || '', r.jumlah, r.catatan || '', r.oleh || '', r.waktu || '']); return; }
       var st = r.stok !== null && r.stok !== undefined ? r.stok : (isNaN(angka(it.stok)) ? 0 : angka(it.stok));
+      if (r.status === 'Belum diketahui') { tak.push([r.kode, r.nama, r.rak || it.rak || '', it.tingkat || '', it.kolom || '', st, r.oleh || '', r.catatan || '']); return; }
       var j = r.status === 'Tidak ditemukan' ? 0 : efektif(r), d = bulat3(j - st);
       var ul = r.status === 'Dihitung' && (r.ulang === null || r.ulang === undefined) && perluUlang(st, r.jumlah);
       if (d === 0) { nSesuai++; } else { nSel++; }
       if (ul) { nUlang++; }
       hasil.push({ k: [r.rak || it.rak || '', it.tingkat || '', it.kolom || '', r.nama], v: [r.kode, r.nama, r.rak || it.rak || '', it.tingkat || '', it.kolom || '', st, j, d,
-        r.status === 'Tidak ditemukan' ? 'Tidak ditemukan' : d === 0 ? 'Sesuai' : ul ? 'Selisih, perlu hitung ulang' : 'Selisih',
+        r.status === 'Tidak ditemukan' ? 'Stok habis' : d === 0 ? 'Sesuai' : ul ? 'Selisih, perlu hitung ulang' : 'Selisih',
         r.oleh || '', r.ulang !== null && r.ulang !== undefined ? r.ulang : '', r.olehUlang || '', r.catatan || ''] });
     });
     hasil.sort(function (a, b) {
@@ -3243,12 +3258,13 @@
       bagian: [
         { judul: 'Ringkasan', kolom: [{ t: 'Keterangan', w: 220 }, { t: 'Nilai', w: 360 }], baris: [
           ['Sesi', s.nama], ['Jenis', s.tipe], ['Status', s.status], ['Dibuat', String(s.dibuat) + ' oleh ' + s.oleh], ['Diterapkan ke stok', s.diterapkan || '-'],
-          ['Total barang dalam cakupan', total], ['Sudah dihitung', nSel + nSesuai], ['Belum dihitung', belum.length], ['Sesuai stok sistem', nSesuai],
+          ['Total barang dalam cakupan', total], ['Sudah dihitung', nSel + nSesuai], ['Belum dihitung', belum.length], ['Belum diketahui keberadaannya', tak.length], ['Sesuai stok sistem', nSesuai],
           ['Ada selisih', nSel], ['Selisih besar, belum dihitung ulang', nUlang], ['Barang temuan (belum terdaftar)', temuan.length],
           ['Laporan dibuat', sekarang + ' oleh ' + namaAdmin]] },
         { judul: 'Hasil hitung', kolom: [{ t: 'No', w: 24 }, { t: 'Kode', w: 44 }, { t: 'Nama barang', w: 160 }, { t: 'Rak', w: 34 }, { t: 'Tkt', w: 28 }, { t: 'Kol', w: 28 }, { t: 'Stok sistem', w: 46 },
           { t: 'Dihitung', w: 46 }, { t: 'Selisih', w: 42 }, { t: 'Status', w: 96 }, { t: 'Petugas', w: 52 }, { t: 'Ulang', w: 36 }, { t: 'Petugas ulang', w: 60, pdf: false }, { t: 'Catatan', w: 80 }], baris: barisHasil },
         { judul: 'Belum dihitung', kolom: [{ t: 'Kode', w: 60 }, { t: 'Nama barang', w: 250 }, { t: 'Rak', w: 50 }, { t: 'Tingkat', w: 50 }, { t: 'Kolom', w: 50 }, { t: 'Stok sistem', w: 70 }, { t: 'Petugas rak', w: 120 }], baris: belum },
+        { judul: 'Belum diketahui keberadaannya', kolom: [{ t: 'Kode', w: 60 }, { t: 'Nama barang', w: 200 }, { t: 'Rak', w: 50 }, { t: 'Tingkat', w: 50 }, { t: 'Kolom', w: 50 }, { t: 'Stok sistem', w: 60 }, { t: 'Petugas', w: 70 }, { t: 'Catatan pencarian', w: 160 }], baris: tak },
         { judul: 'Barang temuan', kolom: [{ t: 'Kode temuan', w: 90 }, { t: 'Nama barang', w: 220 }, { t: 'Lokasi', w: 80 }, { t: 'Jumlah', w: 60 }, { t: 'Catatan', w: 140 }, { t: 'Petugas', w: 80 }, { t: 'Waktu', w: 100 }], baris: temuan }
       ]
     };
