@@ -1970,8 +1970,8 @@
 
   /* ---- data & status ---- */
 
-  function lingkup() { return semua.filter(function (x) { return x.kode; }); }   // termasuk barang yang belum punya rak (masuk grup "Tanpa rak")
-  function tanpaRakJumlah() { return semua.filter(function (x) { return x.kode && !String(x.rak || '').trim(); }).length; }
+  function lingkup() { return semua.filter(function (x) { return x.kode && x.jenis !== 'Jasa'; }); }   // jasa tidak dihitung dalam opname (jenis dikirim dari sistem Gudang)   // termasuk barang yang belum punya rak (masuk grup "Tanpa rak")
+  function tanpaRakJumlah() { return semua.filter(function (x) { return x.kode && x.jenis !== 'Jasa' && !String(x.rak || '').trim(); }).length; }
   function labelRak(r) { return r.tanpa ? 'Tanpa rak' : 'Rak ' + bersihAwalan(r.nama, 'rak'); }
   function efektif(r) { return r.ulang !== null && r.ulang !== undefined ? r.ulang : r.jumlah; }
   function sudahHitung(r) { return !!(r && r.status !== 'Temuan' && r.status !== 'Belum diketahui'); }   // 'Belum diketahui' belum dianggap dihitung
