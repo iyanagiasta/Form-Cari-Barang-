@@ -2344,8 +2344,9 @@
       hasilArr = [];
       if (!norm(cariInp.value)) { hasilCari.style.display = 'none'; return; }
       hasilCari.style.display = '';
-      var h = cari(cariInp.value);
-      if (!h.length) { h = cariKira(cariInp.value, []); }
+      var bukanJasa = function (x) { return x.jenis !== 'Jasa'; };   // jasa tidak dihitung dalam opname, jadi tidak ikut hasil cari di sini
+      var h = cari(cariInp.value).filter(bukanJasa);
+      if (!h.length) { h = cariKira(cariInp.value, []).filter(bukanJasa); }
       h = h.slice(0, 30);
       hasilArr = h;
       opKonteks = h;
