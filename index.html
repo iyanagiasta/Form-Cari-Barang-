@@ -305,6 +305,7 @@
   .op-menu button { min-height: 48px; padding: 8px; border-radius: 10px; border: 1.5px solid var(--laut); background: var(--aksen-lembut); color: var(--laut-tua); font-weight: 700; }
   .op-menu button:disabled { opacity: .5; cursor: not-allowed; }
   .tag-buf { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: #fff3cd; color: #7a5200; border: 1px solid #e0b83c; font-size: .7rem; font-weight: 800; vertical-align: middle; }
+  .tag-order { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: #fff3cd; color: #6b4e00; border: 1px solid #e6c76a; border-left: 4px solid #d9a400; font-size: 11px; font-weight: 700; white-space: nowrap; vertical-align: middle; cursor: help; }
   .op-menu button.op-hapus { border-color: #b3261e; color: #b3261e; background: transparent; }
   .op-sub-judul { margin: 16px 0 6px; font-size: .9rem; color: var(--laut-tua); }
   .op-baris .op-sub { display: block; font-weight: 400; color: var(--redup); font-size: .8rem; }
@@ -896,15 +897,19 @@
 
   /* ---------- Stok ---------- */
 
+  function tagOrder(it) {   // T132: hanya keterangan dari sistem Gudang (tanpa PPBJ/PO)
+    return it.diorder ? el('span', { class: 'tag-order', title: 'Barang ini sedang dipesan ke supplier. Tanya Staff Gudang untuk perkiraan kedatangannya.', text: 'Sedang diorder' }) : null;
+  }
+
   function stokEl(it) {
-    if (!it.stok) { return null; }
+    if (!it.stok) { return it.diorder ? el('p', { class: 'stok' }, [tagOrder(it)]) : null; }
     var n = parseFloat(String(it.stok).replace(',', '.'));
     var min = parseFloat(String(it.stokMin || '').replace(',', '.'));
     var kelas = 'stok';
     var label = 'Stok: ' + it.stok + (it.satuan ? ' ' + it.satuan : '');
     if (!isNaN(n) && n <= 0) { kelas += ' habis'; label += ' (habis)'; }
     else if (!isNaN(n) && !isNaN(min) && n <= min) { kelas += ' menipis'; label += ' (menipis)'; }
-    return el('p', { class: kelas, text: label });
+    return el('p', { class: kelas }, [label, tagOrder(it)]);
   }
 
   /* ---------- Tampilan: hasil pencarian ---------- */
@@ -2269,7 +2274,7 @@
     var r = peta[kunciKode(it.kode)], s = statusOp(it, r);
     var letak = [it.rak ? 'Rak ' + bersihAwalan(it.rak, 'rak') : '', it.tingkat ? 'Tingkat ' + bersihAwalan(it.tingkat, 'tingkat') : '', it.kolom ? 'Kolom ' + bersihAwalan(it.kolom, 'kolom') : '', 'kode ' + it.kode].filter(Boolean).join(' · ');
     var anak = [el('button', { type: 'button', class: 'op-buka', onclick: function () { bukaHitung(it, konteks, asal); } }, [
-      el('span', { class: 'nama' }, [it.nama, it.buf > 0 ? el('span', { class: 'tag-buf', title: 'Wajib ada untuk buffer paket: ' + (it.bufp || ''), text: 'BUFFER ' + fmtAngka(it.buf) }) : null, el('small', { class: 'op-sub', text: letak })]),
+      el('span', { class: 'nama' }, [it.nama, it.buf > 0 ? el('span', { class: 'tag-buf', title: 'Wajib ada untuk buffer paket: ' + (it.bufp || ''), text: 'BUFFER ' + fmtAngka(it.buf) }) : null, tagOrder(it), el('small', { class: 'op-sub', text: letak })]),
       el('span', { class: 'ket', text: s.teks })
     ])];
     // ✓ satu ketukan: barang yang belum dihitung dan jumlahnya sama dengan stok sistem
